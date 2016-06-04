@@ -2,6 +2,10 @@
 //Processing only deals with signed integers, so when converting the binary into hex, there's a chance that
 //Signs get in the way. 
 
+//Second Possible Bug; Wikipedia Article on Intel Hex says the Record Checksum should be calculated using the LSB's two's complement. But then goes on to use the
+//two least signifigant digits in its calculation. The C intel hex lib also seems to use the two LSD checksum calculation method. This all works well now, but then what
+// is up with wikipedia?
+
 
 PrintWriter writer;
 Table table;
@@ -22,18 +26,6 @@ void setup() {
   for (TableRow row :recordTable.rows()){
    println(row.getString(0));   
   }
-  writer = createWriter("TestPad.hex");
-  String testString = "Mic Check, Mic Check 2,2,3";
-  writer.println(table);
-  writer.flush();
-  writer.close();
-  String hi = ("Hello");
-  //println(truthTable.getString(0, 0)); 
-  println("===========================");
-  println("         Sum of Hex        ");
-  println(hi.substring(hi.length()-1));
-  println("===========================");
-  exit();
 }
 
 Table createIHex(Table truthTable) {
@@ -61,16 +53,13 @@ Table createIHex(Table truthTable) {
       firstAddr = false;
       byteCount++;
     }else{   
-      if( isSequential(lastAddr,currAddr) && byteCount < byteLimit){ //Test to determine whether to start
-      //a new record (new line), or continue concantinating data.
+      if( isSequential(lastAddr,currAddr) && byteCount < byteLimit){ //Test to determine whether to start a new record (new line), or continue concantinating data.
        recordData = recordData + hexByte;
        byteCount++;
        runningSum= hex( unhex(runningSum) + unhex(hexByte)); //Running sum on the data for the checksum.
       }else{//Need to start a new record!
         TableRow newRow = recordTable.addRow();
         newRow.setString(0, processRecord(recordAddr, recordData, byteCount, runningSum));
-        println("Data Ready: " +  recordData);
-        println("Addr Ready: " +  recordAddr+currAddr);
         
         recordAddr = currAddr;       
         recordData = hexByte;
@@ -84,8 +73,6 @@ Table createIHex(Table truthTable) {
   }//end for
   TableRow newRow = recordTable.addRow();//Handle the last line of iHex encoding
   newRow.setString(0, processRecord(recordAddr, recordData, byteCount, runningSum));
-  println("Data Ready: " +  recordData);
-  println("Addr Ready: " +  recordAddr+currAddr);
   
   TableRow eofRow = recordTable.addRow();
   eofRow.setString(0, ":"+"00"+"0000"+"01"+"FF"); //EOF Character.
@@ -94,12 +81,8 @@ Table createIHex(Table truthTable) {
 
 String processRecord(String recordAddr, String recordData, int byteCount, String dataSum){
   dataSum = hex( unhex(dataSum) + byteCount, 2);
-  //dataSum = "E2";
-  //String checksum = hex( unhex("F") - unhex(dataSum.substring(dataSum.length()-1 ))+1   ,2);
   String checksum = hex( unhex("FF") - unhex(dataSum)+1   ,2);
   String record = ":"+hex(byteCount,2)+hex(unhex(recordAddr),4)+"00"+ recordData + checksum;
-  println("DS_"+dataSum);
-  println("CS_"+checksum);
   return record;
 }
 
@@ -146,7 +129,6 @@ Table CSVprocess() {
     truthTable.addRow();
     truthTable.setString(rowNum, 0, addr);
     truthTable.setString(rowNum, 1, out);//Adds the parsed CSV data to our return Table.
-    println(rowNum+"_"+addr + "_" + out);
     rowNum++;
   }
   return truthTable;
