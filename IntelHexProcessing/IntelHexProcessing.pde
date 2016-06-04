@@ -94,8 +94,9 @@ Table createIHex(Table truthTable) {
 
 String processRecord(String recordAddr, String recordData, int byteCount, String dataSum){
   dataSum = hex( unhex(dataSum) + byteCount, 2);
+  //dataSum = "E2";
   //String checksum = hex( unhex("F") - unhex(dataSum.substring(dataSum.length()-1 ))+1   ,2);
-  String checksum = hex( unhex("F") - unhex(dataSum)+1   ,2);
+  String checksum = hex( unhex("FF") - unhex(dataSum)+1   ,2);
   String record = ":"+hex(byteCount,2)+hex(unhex(recordAddr),4)+"00"+ recordData + checksum;
   println("DS_"+dataSum);
   println("CS_"+checksum);
