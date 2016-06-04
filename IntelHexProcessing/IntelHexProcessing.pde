@@ -9,29 +9,94 @@
 
 PrintWriter writer;
 Table table;
-int addrSize = 2;
+int addrSize = 8; //Number of Oscillators
 int outSize = 8;
 int[] values = new int[addrSize];
-String TruthTable = "test.csv";
+String TruthTableName = "test.csv";
 String addrName = "addr";
 String outName = "out";
+final int NUM_SELECTORS = 4; //number of DIP switch;
+final int NUM_BANKS = int(pow(2,NUM_SELECTORS));
+final int NUM_OSC = addrSize;
+
 
 void setup() {
-  
   Table recordTable;
   Table truthTable;
-  truthTable = CSVprocess();
-  recordTable = createIHex(truthTable);
-  
-  for (TableRow row :recordTable.rows()){
-   println(row.getString(0));   
-  }
+  //truthTable = CSVprocess();
+  //recordTable = createIHex(truthTable); 
+  //for (TableRow row :recordTable.rows()){
+  // println(row.getString(0));   
+  //}
+   Table inputs = OscillatorGenerator();
+   truthTable = logicProcessor(inputs);
+   //printAddresses(truthTable);
+   println("Outputs");
+   printTable(truthTable);
+   //recordTable = createIHex(truthTable);
+   
+   exit();
 }
 
+Table logicProcessor(Table inputs){
+   Table truthTable = new Table();
+  for( TableRow row: inputs.rows()){
+    int out1=logicAND_8(row);
+    int out2=logicAND_8(row);
+    int out3=logicAND_8(row);
+    int out4=logicAND_8(row);
+    int out5=logicAND_8(row);
+    int out6=logicAND_8(row);
+    int out7=logicAND_8(row);
+    int out8=logicAND_8(row);
+    
+    String output = ""+ out8 + out7 + out6 + out5 + out4 + out3 + out2 + out1;
+    println(output);
+    TableRow answer = truthTable.addRow();
+    answer.setString(0,row.getString(0));
+    answer.setString(1, output);
+  }
+  return truthTable; 
+}
+
+
+Table OscillatorGenerator(){
+  Table oscillators = new Table();
+  int k = int(pow(2,NUM_OSC));
+  for( int i=0; i<k; i++){
+    TableRow set = oscillators.addRow();
+    set.setString(0,(binary(i,NUM_OSC)));
+  }
+  return oscillators;
+}
+
+int logicAND_8(TableRow set){//Performs AND Logic on 8 input oscillators. Its fixed at 8 because it makes an easy template for those who want to roll their own logic function.
+  int a,b,c,d,e,f,g,h, answer;
+  int normal = int('0');
+  String str =set.getString(0);
+  println("Inputs_" + str);
+  a = int(str.charAt(0))-normal;
+  b = int(str.charAt(1))-normal;
+  c = int(str.charAt(2))-normal;
+  d = int(str.charAt(3))-normal;
+  e = int(str.charAt(4))-normal;
+  f = int(str.charAt(5))-normal;
+  g = int(str.charAt(6))-normal;
+  h = int(str.charAt(7))-normal;
+  println(a+"_"+ b+c+d+e+f+g+h);
+  answer = a & b & c & d & e & f & g & h ; //If spinning your own logic function, change these symbols here.
+  
+  return answer;
+}
+
+
+
+
+
+
+
 Table createIHex(Table truthTable) {
-  String iHexLine = "";
   Boolean firstAddr = true;
-  String record = "";
   String recordAddr = "";
   String currAddr = "";
   String lastAddr = "";
@@ -97,6 +162,14 @@ void printOutputs(Table truthTable){
     }
 }
 
+void printTable(Table truthTable){
+    for (TableRow row : truthTable.rows()) {
+    println(hex(unbinary(row.getString(0)), 2)+ "_"+ hex(unbinary(row.getString(1)), 2)) ;
+    }
+}
+
+
+
 /*
 *Prints all the address values stored in a table. Useful for debugging.
 */
@@ -115,7 +188,7 @@ Table CSVprocess() {
   Table table;
   Table truthTable = new Table();
   int rowNum = 0;
-  table = loadTable(TruthTable, "header");
+  table = loadTable(TruthTableName, "header");
   
   for (TableRow row : table.rows()) {
     String addr ="";
