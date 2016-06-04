@@ -1,3 +1,8 @@
+//Possible Bugs:
+//Processing only deals with signed integers, so when converting the binary into hex, there's a chance that
+//Signs get in the way. 
+
+
 PrintWriter writer;
 Table table;
 int addrSize = 2;
@@ -9,24 +14,31 @@ String outName = "out";
 
 void setup() {
   
+  Table recordTable;
   Table truthTable;
   truthTable = CSVprocess();
-  createIHex(truthTable);
-
+  recordTable = createIHex(truthTable);
+  
+  for (TableRow row :recordTable.rows()){
+   println(row.getString(0));   
+  }
   writer = createWriter("TestPad.hex");
   String testString = "Mic Check, Mic Check 2,2,3";
   writer.println(table);
   writer.flush();
   writer.close();
-  println(truthTable.getString(0, 0)); 
-  
-
+  String hi = ("Hello");
+  //println(truthTable.getString(0, 0)); 
+  println("===========================");
+  println("         Sum of Hex        ");
+  println(hi.substring(hi.length()-1));
+  println("===========================");
   exit();
 }
 
 Table createIHex(Table truthTable) {
   String iHexLine = "";
-  Boolean firstAdress = true;
+  Boolean firstAddr = true;
   String record = "";
   String recordAddr = "";
   String currAddr = "";
@@ -34,31 +46,60 @@ Table createIHex(Table truthTable) {
   String recordData = "";
   String hexByte = "";
   int byteCount = 0;
+  String runningSum = "0";
   Table recordTable = new Table();
   final int byteLimit = 16;  //16 is the typical byteCount per record in IntelHex;
   
   for (TableRow row : truthTable.rows()) {
     hexByte = hex(unbinary(row.getString(1)), 2);
     currAddr = hex(unbinary(row.getString(0)), 2);
-    if( isSequential(lastAddr,currAddr) && !firstAdress && byteCount < byteLimit){ //Test to determine whether to start
-    //a new record (new line), or continue concantinating data.
-     recordData = recordData + hexByte;
-     byteCount++;
-    }else{//Need to start a new record!
-      TableRow newRow = recordTable.addRow();
-      newRow.setString(0, processRecord(recordAddr, recordData));
+    if(firstAddr){
+      recordAddr = currAddr;       
+      recordData = hexByte;
+      runningSum = hexByte;
       
-      recordAddr = hex(unbinary(row.getString(0)), 2);       
-      recordData = currAddr;
+      firstAddr = false;
+      byteCount++;
+    }else{   
+      if( isSequential(lastAddr,currAddr) && byteCount < byteLimit){ //Test to determine whether to start
+      //a new record (new line), or continue concantinating data.
+       recordData = recordData + hexByte;
+       byteCount++;
+       runningSum= hex( unhex(runningSum) + unhex(hexByte)); //Running sum on the data for the checksum.
+      }else{//Need to start a new record!
+        TableRow newRow = recordTable.addRow();
+        newRow.setString(0, processRecord(recordAddr, recordData, byteCount, runningSum));
+        println("Data Ready: " +  recordData);
+        println("Addr Ready: " +  recordAddr+currAddr);
+        
+        recordAddr = currAddr;       
+        recordData = hexByte;
+        runningSum = hexByte;
+        
+        byteCount = 0;
+      }
+      
     }
     lastAddr = currAddr;
+  }//end for
+  TableRow newRow = recordTable.addRow();//Handle the last line of iHex encoding
+  newRow.setString(0, processRecord(recordAddr, recordData, byteCount, runningSum));
+  println("Data Ready: " +  recordData);
+  println("Addr Ready: " +  recordAddr+currAddr);
   
-}//end for    
+  TableRow eofRow = recordTable.addRow();
+  eofRow.setString(0, ":"+"00"+"0000"+"01"+"FF"); //EOF Character.
   return recordTable;
 }
 
-String processRecord(String recordAddr, String recordData){
-  return "hi";
+String processRecord(String recordAddr, String recordData, int byteCount, String dataSum){
+  dataSum = hex( unhex(dataSum) + byteCount, 2);
+  //String checksum = hex( unhex("F") - unhex(dataSum.substring(dataSum.length()-1 ))+1   ,2);
+  String checksum = hex( unhex("F") - unhex(dataSum)+1   ,2);
+  String record = ":"+hex(byteCount,2)+hex(unhex(recordAddr),4)+"00"+ recordData + checksum;
+  println("DS_"+dataSum);
+  println("CS_"+checksum);
+  return record;
 }
 
 /*
