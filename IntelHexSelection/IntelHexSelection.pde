@@ -6,7 +6,7 @@
 //two least signifigant digits in its calculation. The C intel hex lib also seems to use the two LSD checksum calculation method. This all works well now, but then what
 // is up with wikipedia?
 
-
+//Intel Hex Writing Variables
 PrintWriter writer;
 Table table;
 int addrSize = 8; //Number of Oscillators
@@ -19,27 +19,192 @@ final int NUM_SELECTORS = 4; //number of DIP switch;
 final int NUM_BANKS = int(pow(2,NUM_SELECTORS));
 final int NUM_OSC = addrSize;
 
+//GUI Variables
+String selAsk = "Enter Memory Bank: ";
+String selMenu ="";
+String keyBoardText = "";
+String BankSelect ="";
+int PinSelect = -1;
+String CustomLogic1 = "Cust1"; //To Modify: Add a brief title of your custom logic. These are the Title Strings
+String CustomLogic2 = "Cust2";
+Table WaveformSelection = new Table();
+int Logic = -1;
+Boolean Confirm = false;
+Boolean BackStep = false;
+Boolean ProcessSelection = false;
+int Menu = 0;
+int bg = 190;
 
+//==================================================================================================
+//============ Section 1: GUI and User Input   =====================================================
+//==================================================================================================
 void setup() {
+  size(1080, 450);
+  textAlign(CENTER, CENTER);
+  textSize(12);
+  fill(0);
+  WaveformSelection.addColumn("Memory Bank", Table.STRING);
+  WaveformSelection.addColumn("Pin", Table.STRING);
+  WaveformSelection.addColumn("Logic", Table.INT);
+}
+
+void draw() {
+  background(bg);
+  textSize(10);
+  textAlign(RIGHT,BOTTOM);
+  text("Type \"truth\" to Burn Logic Selections to Hex file.\nPress Delete to go Back\n Memory Selections to be written are shown in the Console below this window",width-3,height);
+  textSize(30);
+  textAlign(CENTER, CENTER);
+  text(selAsk, 0, 0, width, height);
+  
+  if(Menu != 2) text(keyBoardText, 0, 25, width, height);
+  else text(keyBoardText, width/2, 350);
+  
+  if(Menu > 0){//If/else selected Memory Bank
+    textAlign(LEFT);
+    text("SelectedBank: ", 15,35);
+    text(BankSelect, 20,35+25); 
+    //println(Menu);
+  }else{BankSelect = "";}  
+  if(Menu > 1){//If/else selected Out Pin.
+    textAlign(LEFT);
+    text("Selected Pin: ", 300,35);
+    text(PinSelect, 300,35+25);  
+  }else{PinSelect = -1;}
+  if(Menu >2){//If/else selected Logic Output
+    textAlign(LEFT);
+    text("Selected Logic: ", 600,35);
+    text(Logic, 600,35+25);
+  }else{Logic= -1;}
+  
+  
+  if(Menu == 0){//Everything for  selecting Memory Bank;
+    selAsk = "Enter Memory Bank";
+    if(Confirm){
+      BankSelect = keyBoardText;
+    }   
+  }//End Menu 0;
+  
+  if(Menu == 1){//Everything for selecting Output Pin
+   selAsk = "Select Output Pin(1-8):";
+   if(Confirm){
+      PinSelect = int(keyBoardText);
+   }
+  }//End Menu 1;
+  
+  if(Menu == 2){//Everything for selecting Logic Function
+    selAsk = "Select Logic Function for Pin " + PinSelect + ":";
+    selAsk = selAsk+ "\n1: All & (AND) \n2: All | (OR)\n3: All ^ (XOR)\n4: " +CustomLogic1 + "\n5: "+CustomLogic2 + "\n";   
+    //To Modify: If you want to add more than two Custom logic commands, add their Title String here.
+    if(Confirm){
+     Logic = int(keyBoardText); 
+    }
+  }//end Menu 2;
+  
+  if(Menu == 3){//Everything for Processing the SELECTION. MemBank, Pin, Logic.
+    selAsk = "Confirm Selection above: (y/n)";
+    if(Confirm){
+     String answer = (keyBoardText); 
+     if(answer.equals("y")){
+       ProcessSelection = true;
+     }
+    }
+  }//end Menu 3;
+  
+  
+  if(ProcessSelection){ //Everything for Processing the SELECTION. MemBank, Pin, Logic, and sending it to the IHex Parser.
+    Menu = -1;
+    ProcessSelection = false;
+    //Table Selection = new Table();
+    TableRow newRow = WaveformSelection.addRow();
+    newRow.setString("Memory Bank", BankSelect);
+    newRow.setInt("Pin", PinSelect);
+    newRow.setInt("Logic", Logic);
+    PrintWaveformSelection();
+    text("SDfsdfsdfs",0,0); // Odd Refresh bug needed to move the program forward. Calls a Canvas refresh?
+    BankSelect = "";
+    PinSelect = -1;
+    Logic = -1;
+  }//End Process Selection
+  if(Confirm && keyBoardText.equals("truth")){
+   BurnIntelHex(); 
+  }  
+  if(Confirm){
+    Confirm=false;
+    keyBoardText = "";
+    Menu ++;    
+  }//End Confirm
+  if(BackStep){
+    BackStep = false;
+    if(Menu>0) Menu--;
+  }
+}//End Draw()
+  
+void PrintWaveformSelection(){
+  println("  Memory Bank:\t  Pin:\t Logic Function:");
+ for (TableRow row: WaveformSelection.rows()){
+    println("  " + row.getString("Memory Bank")+ "\t\t" + row.getInt("Pin") + "\t\t" + row.getInt("Logic") );
+ } 
+}
+
+void keyPressed() {
+  if (keyCode == BACKSPACE) {
+    if (keyBoardText.length() > 0) {
+      keyBoardText = keyBoardText.substring(0, keyBoardText.length()-1);
+    }
+  } else if (keyCode == DELETE) {
+    keyBoardText = "";
+    BackStep = true; 
+  } else if (keyCode != SHIFT && keyCode != CONTROL && keyCode != ALT && (keyCode != ENTER)) {
+    keyBoardText = keyBoardText + key;
+  }else if (keyCode == ENTER && keyBoardText != ""){Confirm = true;}
+}
+
+
+
+//==================================================================================================
+//============ Section 2: Intel Hex Generation =====================================================
+//==================================================================================================
+/*
+*Takes the WaveformSelection Tables, Generates inputs, Assembles Truth Tables,
+*    Then writes it all to a Hex File.    
+*/
+void BurnIntelHex(){
   Table recordTable;
   Table truthTable;
-  //truthTable = CSVprocess();
+  
   //recordTable = createIHex(truthTable); 
   //for (TableRow row :recordTable.rows()){
   // println(row.getString(0));   
   //}
    Table inputs = OscillatorGenerator();
-   truthTable = logicProcessor(inputs);
-   //printAddresses(truthTable);
-   println("Outputs");
-   printTable(truthTable);
+   //WaveformSelection;
+   truthTable = truthtableGenerator(WaveformSelection,inputs);
+   //truthTable = CSVprocess();
+    printTable(truthTable);
    //recordTable = createIHex(truthTable);
    
    exit();
+  
 }
 
-Table logicProcessor(Table inputs){
-   Table truthTable = new Table();
+Table truthtableGenerator(Table WaveformSelection, Table inputs){
+  Table truthTable = new Table();
+  for(TableRow Selection: WaveformSelection.rows()){//Process each Waveform Selection
+    String selAddr = Selection.getString("Memory Bank");
+    int pin = Selection.getInt("Pin");
+    int logic = Selection.getInt("Logic");
+    
+    for( TableRow oscRow: inputs.rows(){
+       for all pins(){
+         //If Pin is selected in Selection, use that to determine truth table via Logic selection
+         //Else use all zeros;
+         //TODO
+       }
+    }
+  
+  
+  }
   for( TableRow row: inputs.rows()){
     int out1=logicAND_8(row);
     int out2=logicAND_8(row);
@@ -60,6 +225,18 @@ Table logicProcessor(Table inputs){
 }
 
 
+/*
+*Takes a string of inputs, and a logic designator, 
+* Calls the appropriate Logic Function and returns its value.
+*To Modify: Add your custom logic function call to the switch case.
+*/
+String logicProcessor(String inputs, int Logic){
+  String answer= "";
+  //Todo
+  return answer;
+}
+
+
 Table OscillatorGenerator(){
   Table oscillators = new Table();
   int k = int(pow(2,NUM_OSC));
@@ -75,7 +252,7 @@ int logicAND_8(TableRow set){//Performs AND Logic on 8 input oscillators. Its fi
   int normal = int('0');
   String str =set.getString(0);
   println("Inputs_" + str);
-  a = int(str.charAt(0))-normal;
+  a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
   b = int(str.charAt(1))-normal;
   c = int(str.charAt(2))-normal;
   d = int(str.charAt(3))-normal;
@@ -90,7 +267,17 @@ int logicAND_8(TableRow set){//Performs AND Logic on 8 input oscillators. Its fi
 }
 
 
-
+Table MemoryBankGrouper(Table waveformSelection){
+Table groupedWaveforms = new Table();
+//TODO Change data structure so it goes
+//10101
+//----1, 2
+//----3, 1
+//0001
+//---12
+//Tables within tables.
+return groupedWaveforms;
+}
 
 
 
