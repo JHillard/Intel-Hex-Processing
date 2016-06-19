@@ -86,7 +86,7 @@ void draw() {
   }//End Menu 0;
   
   if(Menu == 1){//Everything for selecting Output Pin
-   selAsk = "Select Output Pin(1-8):";
+   selAsk = "Select Output Pin(0-7):";
    if(Confirm){
       PinSelect = int(keyBoardText);
    }
@@ -127,7 +127,7 @@ void draw() {
     Logic = -1;
   }//End Process Selection
   if(Confirm && keyBoardText.equals("truth")){
-   BurnIntelHex(); 
+   BurnIntelHex(WaveformSelection); 
   }  
   if(Confirm){
     Confirm=false;
@@ -140,12 +140,7 @@ void draw() {
   }
 }//End Draw()
   
-void PrintWaveformSelection(){
-  println("  Memory Bank:\t  Pin:\t Logic Function:");
- for (TableRow row: WaveformSelection.rows()){
-    println("  " + row.getString("Memory Bank")+ "\t\t" + row.getInt("Pin") + "\t\t" + row.getInt("Logic") );
- } 
-}
+
 
 void keyPressed() {
   if (keyCode == BACKSPACE) {
@@ -274,7 +269,7 @@ void printWaveform(Table waveform) {
 *Takes the WaveformSelection Tables, Generates inputs, Assembles Truth Tables,
 *    Then writes it all to a Hex File.    
 */
-void BurnIntelHex(){
+void BurnIntelHex(Table waveformSelection){
   Table recordTable;
   Table truthTable;
   
@@ -282,18 +277,25 @@ void BurnIntelHex(){
   //for (TableRow row :recordTable.rows()){
   // println(row.getString(0));   
   //}
+   PrintWaveformSelection();
    Table inputs = OscillatorGenerator();
-   //WaveformSelection;
-   truthTable = truthtableGenerator(WaveformSelection,inputs);
-   //truthTable = CSVprocess();
-    printTruthTable(truthTable);
+   truthTable = truthtableGenerator(waveformSelection,inputs);
+   println("Truth Table Generated!");
+   printBinaryTruthTable(truthTable);
+   //printOutputs(truthTable);
+   //printAddresses(truthTable);
    //recordTable = createIHex(truthTable);
    
    exit();
   
 }
 
-
+void PrintWaveformSelection(){
+  println("  Memory Bank:\t  Pin:\t Logic Function:");
+ for (TableRow row: WaveformSelection.rows()){
+    println("  " + row.getString("Memory Bank")+ "\t\t" + row.getInt("Pin") + "\t\t" + row.getInt("Logic") );
+ }
+}
 
 /*
 * Truth Table is of form:
@@ -401,77 +403,178 @@ Boolean isSequential(String hex1, String hex2) {
 * Address2, Output2
 * Address3, Output3
 */
-Table truthtableGenerator(Table WaveformSelection, Table inputs){
+Table truthtableGenerator(Table waveformSelection, Table inputs){
   Table truthTable = new Table();
-  for(TableRow selection: WaveformSelection.rows()){//Each row holds an entire memory bank.
+  truthTable.addColumn("Address", Table.STRING);
+  truthTable.addColumn("Outputs", Table.STRING);
+  waveformSelection = tableGrouper(waveformSelection);
+  for(TableRow selection: waveformSelection.rows()){//Each row holds an entire memory bank.
     String selAddr = selection.getString(0); //"Memory Bank"
     String pinString = selection.getString(1);//"Pin"
     String logicString = selection.getString(2);//"Logic"
     Table pT = new Table(); Table lT = new Table();
     pT.addColumn();lT.addColumn();
+    println(pinString);
+    println(logicString);
+    println(selAddr);
     StringToTable(pinString,pT,0);
     StringToTable(logicString,lT,0);
     Table pinAndLogic = pairTwoIntTables(pT,lT);
-    Table memBankOut = new Table();
-    memBankOut.addColumn("Address", Table.STRING);
-    memBankOut.addColumn("Outputs", Table.STRING);
+    printIntTable(pinAndLogic);
     for( TableRow oscRow: inputs.rows()){ //Iterates through every input.
-       String output = "0000"+"0000"; //Default 8 output pins. 
+       String outputs = "0000"+"0000"; //Default 8 output pins. 
        String input = oscRow.getString(0);
        for( TableRow action: pinAndLogic.rows()){
            int pin = action.getInt(0);
            int logicCode = action.getInt(1);
-           outputs.replaceChar(pin, str(executeLogic(logicCode, input)));
-     }
-       
-         //If Pin is selected in Selection, use that to determine truth table via Logic selection
-         //Else use all zeros;
-         //TODO
+           outputs = replaceCharAt(pin, str(executeLogic(logicCode, input)).toCharArray()[0], outputs );
+           //println("p"+pin+"_l"+logicCode+"_in"+input+"_OU"+outputs);
+       }
+       TableRow singleLine = truthTable.addRow();
+       singleLine.setString(0,selAddr+input); //Sets truth table address
+       singleLine.setString(1,outputs);   //Sets truth table output.
     } 
   }
   return truthTable;
 }
 
 int executeLogic( int logicCode, String inputs){
-  int output = 0;
-  //Todo, execute the logic function given by logic code.
-  //Switch case to different logic methods, then take the return output.
-  //ALSO, WRITE A TEST PLAYGROUND FOR THE LOGIC GENERATION PARTS JUST LIKE THE GROUPING SECTION.
+  int output = 0;  
+  switch(logicCode){
+   case 1: 
+     output= logicAND_8(inputs);
+     break;
+   case 2:
+     output = logicOR_8(inputs);
+     break;
+   case 3: 
+     output = logicXOR_8(inputs);
+     break;
+   case 4:
+     output = logicCUST_1(inputs);
+     break;
+   case 5:
+     output = logicCUST_2(inputs); 
+     break;
+ //To Modify: add extra custom logic methods to here and to the selection menu in section 1.
+   default: output = 0; break; 
+   //default: output = logicAND_8(inputs); break; 
+   
+  }
   return output;
 }
 
- 
- /* for( TableRow row: inputs.rows()){
-    int out1=logicAND_8(row);
-    int out2=logicAND_8(row);
-    int out3=logicAND_8(row);
-    int out4=logicAND_8(row);
-    int out5=logicAND_8(row);
-    int out6=logicAND_8(row);
-    int out7=logicAND_8(row);
-    int out8=logicAND_8(row);
-    
-    String output = ""+ out8 + out7 + out6 + out5 + out4 + out3 + out2 + out1;
-    println(output);
-    TableRow answer = truthTable.addRow();
-    answer.setString(0,row.getString(0));
-    answer.setString(1, output);
-  }
-  return truthTable; 
-}
-*/
-
 /*
-*Takes a string of inputs, and a logic designator, 
-* Calls the appropriate Logic Function and returns its value.
-*To Modify: Add your custom logic function call to the switch case.
+* Performs AND Logic on all 8 input oscillators. Its fixed at 8 because it makes an easy template 
+* for those who want to roll their own logic function.
 */
-String logicProcessor(String inputs, int Logic){
-  String answer= "";
-  //Todo
+int logicAND_8(String str){
+  int a,b,c,d,e,f,g,h, answer;
+  int normal = int('0');
+  println("Inputs_" + str);
+  a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
+  b = int(str.charAt(1))-normal;
+  c = int(str.charAt(2))-normal;
+  d = int(str.charAt(3))-normal;
+  e = int(str.charAt(4))-normal;
+  f = int(str.charAt(5))-normal;
+  g = int(str.charAt(6))-normal;
+  h = int(str.charAt(7))-normal;
+  println(a+"_&"+ b+c+d+e+f+g+h);
+  answer = a & b & c & d & e & f & g & h ;
   return answer;
 }
 
+/*
+* Performs OR Logic on all 8 input oscillators. Its fixed at 8 because it makes an easy template 
+* for those who want to roll their own logic function.
+*/
+int logicOR_8(String str){
+  int a,b,c,d,e,f,g,h, answer;
+  int normal = int('0');
+  println("Inputs_" + str);
+  a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
+  b = int(str.charAt(1))-normal;
+  c = int(str.charAt(2))-normal;
+  d = int(str.charAt(3))-normal;
+  e = int(str.charAt(4))-normal;
+  f = int(str.charAt(5))-normal;
+  g = int(str.charAt(6))-normal;
+  h = int(str.charAt(7))-normal;
+  println(a+"_|"+ b+c+d+e+f+g+h);
+  answer = a | b | c | d | e | f | g | h ; 
+  return answer;
+}
+
+/*
+* Performs XOR Logic on all 8 input oscillators. Its fixed at 8 because it makes an easy template 
+* for those who want to roll their own logic function.
+*/
+int logicXOR_8(String str){
+  int a,b,c,d,e,f,g,h, answer;
+  int normal = int('0');
+  println("Inputs_" + str);
+  a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
+  b = int(str.charAt(1))-normal;
+  c = int(str.charAt(2))-normal;
+  d = int(str.charAt(3))-normal;
+  e = int(str.charAt(4))-normal;
+  f = int(str.charAt(5))-normal;
+  g = int(str.charAt(6))-normal;
+  h = int(str.charAt(7))-normal;
+  println(a+"_^"+ b+c+d+e+f+g+h);
+  answer = a ^ b ^ c ^ d ^ e ^ f ^ g ^ h ; //If spinning your own logic function, change these symbols here.
+  return answer;
+}
+
+
+/*
+* To modify: Performs ???? Logic on all 8 input oscillators. Its fixed at 8 because it makes an easy template 
+* for those who want to roll their own logic function.
+*/
+int logicCUST_1(String str){
+  int a,b,c,d,e,f,g,h, answer;
+  int normal = int('0');
+  println("Inputs_" + str);
+  a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
+  b = int(str.charAt(1))-normal;
+  c = int(str.charAt(2))-normal;
+  d = int(str.charAt(3))-normal;
+  e = int(str.charAt(4))-normal;
+  f = int(str.charAt(5))-normal;
+  g = int(str.charAt(6))-normal;
+  h = int(str.charAt(7))-normal;
+  println(a+"_?!"+ b+c+d+e+f+g+h);
+  answer = a & b & c & d & e & f & g & h ; //To Modify: If spinning your own logic function, change these symbols here.
+  return answer;
+}
+
+/*
+* To modify: Performs ???? Logic on all 8 input oscillators. Its fixed at 8 because it makes an easy template 
+* for those who want to roll their own logic function.
+*/
+int logicCUST_2(String str){
+  int a,b,c,d,e,f,g,h, answer;
+  int normal = int('0');
+  println("Inputs_" + str);
+  a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
+  b = int(str.charAt(1))-normal;
+  c = int(str.charAt(2))-normal;
+  d = int(str.charAt(3))-normal;
+  e = int(str.charAt(4))-normal;
+  f = int(str.charAt(5))-normal;
+  g = int(str.charAt(6))-normal;
+  h = int(str.charAt(7))-normal;
+  println(a+"_?!"+ b+c+d+e+f+g+h);
+  answer = a & b & c & d & e & f & g & h ; //To Modify: If spinning your own logic function, change these symbols here.
+  return answer;
+}
+
+
+
+
+
+ 
 
 Table OscillatorGenerator(){
   Table oscillators = new Table();
@@ -483,30 +586,17 @@ Table OscillatorGenerator(){
   return oscillators;
 }
 
-int logicAND_8(TableRow set){//Performs AND Logic on 8 input oscillators. Its fixed at 8 because it makes an easy template for those who want to roll their own logic function.
-  int a,b,c,d,e,f,g,h, answer;
-  int normal = int('0');
-  String str =set.getString(0);
-  println("Inputs_" + str);
-  a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
-  b = int(str.charAt(1))-normal;
-  c = int(str.charAt(2))-normal;
-  d = int(str.charAt(3))-normal;
-  e = int(str.charAt(4))-normal;
-  f = int(str.charAt(5))-normal;
-  g = int(str.charAt(6))-normal;
-  h = int(str.charAt(7))-normal;
-  println(a+"_"+ b+c+d+e+f+g+h);
-  answer = a & b & c & d & e & f & g & h ; //If spinning your own logic function, change these symbols here.
-  
-  return answer;
-}
-
 void printTruthTable(Table truthTable){
     for (TableRow row : truthTable.rows()) {
     println(hex(unbinary(row.getString(0)), 2)+ "_"+ hex(unbinary(row.getString(1)), 2)) ;
     }
 }
+void printBinaryTruthTable(Table truthTable){
+    for (TableRow row : truthTable.rows()) {
+    println((row.getString(0))+ "_"+ row.getString(1)) ;
+    }
+}
+
 /*
 *Processes a CSV and returns the Table of our addresses and outputs
  */
@@ -531,4 +621,14 @@ Table CSVprocess() {
     rowNum++;
   }
   return truthTable;
+}
+
+/*
+* Given an index, a character, and a String, returns a String with that character replaced in the string at said index.
+*/
+String replaceCharAt(int i, char c, String repl){
+ char primeRepl[] = new char[repl.length()];
+ primeRepl = repl.toCharArray();
+ primeRepl[i] = c;
+ return new String(primeRepl); 
 }
