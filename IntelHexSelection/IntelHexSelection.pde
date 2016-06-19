@@ -1,6 +1,6 @@
 //Possible Bugs:
 //Processing only deals with signed integers, so when converting the binary into hex, there's a chance that
-//Signs get in the way. 
+//signs get in the way. 
 
 //Second Possible Bug; Wikipedia Article on Intel Hex says the Record Checksum should be calculated using the LSB's two's complement. But then goes on to use the
 //two least signifigant digits in its calculation. The C intel hex lib also seems to use the two LSD checksum calculation method. This all works well now, but then what
@@ -160,10 +160,115 @@ void keyPressed() {
   }else if (keyCode == ENTER && keyBoardText != ""){Confirm = true;}
 }
 
+//==================================================================================================
+//============ Section 2: Table Translation and Grouping============================================
+//==================================================================================================
+// Table maniuplation methods for sorting and otherwise manipulating truth tables and input selections
+// to make iterating over inputs and generating logic possible.
+
+/*
+* Takes table with each operation enumerated by memory bank, pin, and logic. Outputs
+* a table with all pins used in a single memory bank as one entry in a table, with all pins
+* taking up a single entry, just coded together by Strings. This gets around Processing's lack of arrays or
+* sorting ability. 
+*/
+
+Table tableGrouper(Table waveforms) {
+  Table groupedWaves = new Table();
+  groupedWaves.addColumn("Memory Bank", Table.STRING);
+  groupedWaves.addColumn("Pin", Table.STRING);
+  groupedWaves.addColumn("Logic", Table.STRING);
+  //groupedWaves: MemBank, pin1_pin2_pin3....pinN, Logic1_....LogicN;
+  for ( TableRow row : waveforms.rows()) {
+    String bank = row.getString("Memory Bank");
+    String newPin = "" + row.getInt("Pin");
+    String newLogic = "" + row.getInt("Logic");
+    String oldPins, oldLogics;
+    TableRow bankRow;
+    try {
+      bankRow = groupedWaves.findRow(bank, "Memory Bank");
+      oldPins = bankRow.getString("Pin");
+      oldLogics = bankRow.getString("Logic");
+    }
+    catch(Exception e) {
+      bankRow = groupedWaves.addRow();
+      oldPins = "";
+      oldLogics = "";
+    }
+    bankRow.setString("Memory Bank", bank);
+    bankRow.setString("Pin", oldPins + newPin + "_");
+    bankRow.setString("Logic", oldLogics + newLogic + "_");
+  }
+  return groupedWaves;
+}
+
+/*
+* Takes a table of delimited Strings of the form a_b_c...n_ and turns it into a table of
+* t1:
+*  a
+*  b
+*  .
+*  n
+*
+* This re-processes the strings outputed by tableGrouper into something more iterable for the truthTableGenerator
+*/
+Table StringToTable(String delmintedString, Table table, int column) {
+  if (delmintedString.length() <= 1) return table;
+  int s1 = int(delmintedString.substring(0, delmintedString.indexOf("_")));
+  String sRemain = delmintedString.substring(delmintedString.indexOf("_")+1);
+  TableRow newEntry = table.addRow();
+  newEntry.setInt(column, s1);
+  table = StringToTable(sRemain, table, column);
+  return table;
+}
+
+/*
+*Takes two INT single column tables t1 and t2 and pairs them up, so that 
+ * t3:  t1: t2:
+ * 1,2   1   2
+ * 3,b   3   b
+ * 3,1   3   1 
+ *
+ * Tables must have same number of rows. Uses t1 rowLength to determine final output size.
+ */
+Table pairTwoIntTables(Table t1, Table t2) {
+  Table t3 = new Table();
+  t3.addColumn();
+  t3.addColumn();
+  for ( int i=0; i<t1.getRowCount(); i++) {
+    TableRow row = t3.addRow();
+    row.setInt(0, t1.getRow(i).getInt(0));
+    row.setInt(1, t2.getRow(i).getInt(0));
+  }
+  return t3;
+}
+
+void printIntTable(Table tab) {
+  for ( TableRow row : tab.rows()) {
+    for (int i=0; i<tab.getColumnCount(); i++) {
+      print(row.getInt(i)+ "_");
+    }
+    println("");
+  }
+}
+void printWaveform(Table waveform) {
+  try {
+    for (TableRow row : waveform.rows()) {
+      println(row.getString("Memory Bank") +"|" + row.getString("Pin") +"|" + row.getString("Logic") );
+    }
+  }
+  catch(Exception e) {
+    for (TableRow row : waveform.rows()) {
+      println(row.getString("Memory Bank") +"|" + row.getInt("Pin") +"|" + row.getInt("Logic") );
+    }
+  }
+}
+
+
 
 
 //==================================================================================================
-//============ Section 2: Intel Hex Generation =====================================================
+//============ Section 3: Intel Hex Generation =====================================================
 //==================================================================================================
 /*
 *Takes the WaveformSelection Tables, Generates inputs, Assembles Truth Tables,
@@ -181,31 +286,162 @@ void BurnIntelHex(){
    //WaveformSelection;
    truthTable = truthtableGenerator(WaveformSelection,inputs);
    //truthTable = CSVprocess();
-    printTable(truthTable);
+    printTruthTable(truthTable);
    //recordTable = createIHex(truthTable);
    
    exit();
   
 }
 
+
+
+/*
+* Truth Table is of form:
+* address(input on pins), output on pins
+*/
+Table createIHex(Table truthTable) {
+  Boolean firstAddr = true;
+  String recordAddr = "";
+  String currAddr = "";
+  String lastAddr = "";
+  String recordData = "";
+  String hexByte = "";
+  int byteCount = 0;
+  String runningSum = "0";
+  Table recordTable = new Table();
+  final int byteLimit = 16;  //16 is the cultural Standard max byteCount per record in IntelHex;
+  
+  for (TableRow row : truthTable.rows()) {
+    hexByte = hex(unbinary(row.getString(1)), 2);
+    currAddr = hex(unbinary(row.getString(0)), 2);
+    if(firstAddr){
+      recordAddr = currAddr;       
+      recordData = hexByte;
+      runningSum = hexByte;
+      
+      firstAddr = false;
+      byteCount++;
+    }else{   
+      if( isSequential(lastAddr,currAddr) && byteCount < byteLimit){ //Test to determine whether to start a new record (new line), or continue concantinating data.
+       recordData = recordData + hexByte;
+       byteCount++;
+       runningSum= hex( unhex(runningSum) + unhex(hexByte)); //Running sum on the data for the checksum.
+      }else{//Need to start a new record!
+        TableRow newRow = recordTable.addRow();
+        newRow.setString(0, processRecord(recordAddr, recordData, byteCount, runningSum));
+        
+        recordAddr = currAddr;       
+        recordData = hexByte;
+        runningSum = hexByte;
+        
+        byteCount = 0;
+      }
+      
+    }
+    lastAddr = currAddr;
+  }//end for
+  TableRow newRow = recordTable.addRow();//Add the record skipped by the for loop of iHex encoding
+  newRow.setString(0, processRecord(recordAddr, recordData, byteCount, runningSum));
+  TableRow eofRow = recordTable.addRow();
+  eofRow.setString(0, ":"+"00"+"0000"+"01"+"FF"); //EOF Record.
+  return recordTable;
+}
+
+String processRecord(String recordAddr, String recordData, int byteCount, String dataSum){
+  dataSum = hex( unhex(dataSum) + byteCount, 2);
+  String checksum = hex( unhex("FF") - unhex(dataSum)+1   ,2);
+  String record = ":"+hex(byteCount,2)+hex(unhex(recordAddr),4)+"00"+ recordData + checksum;
+  return record;
+}
+
+/*
+*Prints all the output values stored in a table. Useful for debugging.
+*/
+void printOutputs(Table truthTable){
+    for (TableRow row : truthTable.rows()) {
+    println("no_cast: " +row.getString(1));
+    println("int: " +unbinary(row.getString(1)));
+    println("hex: " + hex(unbinary(row.getString(1)), 2)) ;
+    }
+}
+/*
+*Prints all the address values stored in a table. Useful for debugging.
+*/
+void printAddresses(Table truthTable){
+    for (TableRow row : truthTable.rows()) {
+    println("no_cast: " +row.getString(0));
+    println("int: " +unbinary(row.getString(0)));
+    println("hex: " + hex(unbinary(row.getString(0)), 2)) ;
+    }
+}
+/*
+*Returns True if two hex numbers are sequential to one and other
+ */
+Boolean isSequential(String hex1, String hex2) {
+  int i1, i2;
+  i1 = unhex(hex1);
+  i2 = unhex(hex2);
+  return i2==(i1+1);
+}
+
+
+//==================================================================================================
+//============ Section 4: Logic and Truth Tables =====================================================
+//==================================================================================================
+//Everything responsible for getting a truth table ready.
+
+
+/*
+*Takes in an input of oscillators, and a waveform Table of shape:
+* Memory Bank1, P1_P2_...PN_, L1_L2_...LN
+* Memory Bank2, P1_P2_...PN_, L1_L2_...LN
+* Memory Bank3, P1_P2_...PN_, L1_L2_...LN
+* and outputs a truth table of shape:
+* Address1, Output1
+* Address2, Output2
+* Address3, Output3
+*/
 Table truthtableGenerator(Table WaveformSelection, Table inputs){
   Table truthTable = new Table();
-  for(TableRow Selection: WaveformSelection.rows()){//Process each Waveform Selection
-    String selAddr = Selection.getString("Memory Bank");
-    int pin = Selection.getInt("Pin");
-    int logic = Selection.getInt("Logic");
-    
-    for( TableRow oscRow: inputs.rows(){
-       for all pins(){
+  for(TableRow selection: WaveformSelection.rows()){//Each row holds an entire memory bank.
+    String selAddr = selection.getString(0); //"Memory Bank"
+    String pinString = selection.getString(1);//"Pin"
+    String logicString = selection.getString(2);//"Logic"
+    Table pT = new Table(); Table lT = new Table();
+    pT.addColumn();lT.addColumn();
+    StringToTable(pinString,pT,0);
+    StringToTable(logicString,lT,0);
+    Table pinAndLogic = pairTwoIntTables(pT,lT);
+    Table memBankOut = new Table();
+    memBankOut.addColumn("Address", Table.STRING);
+    memBankOut.addColumn("Outputs", Table.STRING);
+    for( TableRow oscRow: inputs.rows()){ //Iterates through every input.
+       String output = "0000"+"0000"; //Default 8 output pins. 
+       String input = oscRow.getString(0);
+       for( TableRow action: pinAndLogic.rows()){
+           int pin = action.getInt(0);
+           int logicCode = action.getInt(1);
+           outputs.replaceChar(pin, str(executeLogic(logicCode, input)));
+     }
+       
          //If Pin is selected in Selection, use that to determine truth table via Logic selection
          //Else use all zeros;
          //TODO
-       }
-    }
-  
-  
+    } 
   }
-  for( TableRow row: inputs.rows()){
+  return truthTable;
+}
+
+int executeLogic( int logicCode, String inputs){
+  int output = 0;
+  //Todo, execute the logic function given by logic code.
+  //Switch case to different logic methods, then take the return output.
+  //ALSO, WRITE A TEST PLAYGROUND FOR THE LOGIC GENERATION PARTS JUST LIKE THE GROUPING SECTION.
+  return output;
+}
+
+ 
+ /* for( TableRow row: inputs.rows()){
     int out1=logicAND_8(row);
     int out2=logicAND_8(row);
     int out3=logicAND_8(row);
@@ -223,7 +459,7 @@ Table truthtableGenerator(Table WaveformSelection, Table inputs){
   }
   return truthTable; 
 }
-
+*/
 
 /*
 *Takes a string of inputs, and a logic designator, 
@@ -266,110 +502,13 @@ int logicAND_8(TableRow set){//Performs AND Logic on 8 input oscillators. Its fi
   return answer;
 }
 
-
-Table MemoryBankGrouper(Table waveformSelection){
-Table groupedWaveforms = new Table();
-//TODO Change data structure so it goes
-//10101
-//----1, 2
-//----3, 1
-//0001
-//---12
-//Tables within tables.
-return groupedWaveforms;
-}
-
-
-
-
-Table createIHex(Table truthTable) {
-  Boolean firstAddr = true;
-  String recordAddr = "";
-  String currAddr = "";
-  String lastAddr = "";
-  String recordData = "";
-  String hexByte = "";
-  int byteCount = 0;
-  String runningSum = "0";
-  Table recordTable = new Table();
-  final int byteLimit = 16;  //16 is the typical byteCount per record in IntelHex;
-  
-  for (TableRow row : truthTable.rows()) {
-    hexByte = hex(unbinary(row.getString(1)), 2);
-    currAddr = hex(unbinary(row.getString(0)), 2);
-    if(firstAddr){
-      recordAddr = currAddr;       
-      recordData = hexByte;
-      runningSum = hexByte;
-      
-      firstAddr = false;
-      byteCount++;
-    }else{   
-      if( isSequential(lastAddr,currAddr) && byteCount < byteLimit){ //Test to determine whether to start a new record (new line), or continue concantinating data.
-       recordData = recordData + hexByte;
-       byteCount++;
-       runningSum= hex( unhex(runningSum) + unhex(hexByte)); //Running sum on the data for the checksum.
-      }else{//Need to start a new record!
-        TableRow newRow = recordTable.addRow();
-        newRow.setString(0, processRecord(recordAddr, recordData, byteCount, runningSum));
-        
-        recordAddr = currAddr;       
-        recordData = hexByte;
-        runningSum = hexByte;
-        
-        byteCount = 0;
-      }
-      
-    }
-    lastAddr = currAddr;
-  }//end for
-  TableRow newRow = recordTable.addRow();//Handle the last line of iHex encoding
-  newRow.setString(0, processRecord(recordAddr, recordData, byteCount, runningSum));
-  
-  TableRow eofRow = recordTable.addRow();
-  eofRow.setString(0, ":"+"00"+"0000"+"01"+"FF"); //EOF Character.
-  return recordTable;
-}
-
-String processRecord(String recordAddr, String recordData, int byteCount, String dataSum){
-  dataSum = hex( unhex(dataSum) + byteCount, 2);
-  String checksum = hex( unhex("FF") - unhex(dataSum)+1   ,2);
-  String record = ":"+hex(byteCount,2)+hex(unhex(recordAddr),4)+"00"+ recordData + checksum;
-  return record;
-}
-
-/*
-*Prints all the output values stored in a table. Useful for debugging.
-*/
-void printOutputs(Table truthTable){
-    for (TableRow row : truthTable.rows()) {
-    println("no_cast: " +row.getString(1));
-    println("int: " +unbinary(row.getString(1)));
-    println("hex: " + hex(unbinary(row.getString(1)), 2)) ;
-    }
-}
-
-void printTable(Table truthTable){
+void printTruthTable(Table truthTable){
     for (TableRow row : truthTable.rows()) {
     println(hex(unbinary(row.getString(0)), 2)+ "_"+ hex(unbinary(row.getString(1)), 2)) ;
     }
 }
-
-
-
 /*
-*Prints all the address values stored in a table. Useful for debugging.
-*/
-void printAddresses(Table truthTable){
-    for (TableRow row : truthTable.rows()) {
-    println("no_cast: " +row.getString(0));
-    println("int: " +unbinary(row.getString(0)));
-    println("hex: " + hex(unbinary(row.getString(0)), 2)) ;
-    }
-}
-
-/*
-*Processes the CSV and returns the Table of our addresses and outputs
+*Processes a CSV and returns the Table of our addresses and outputs
  */
 Table CSVprocess() {
   Table table;
@@ -392,14 +531,4 @@ Table CSVprocess() {
     rowNum++;
   }
   return truthTable;
-}
-
-/*
-*Returns True if two hex numbers are sequential to one and other
- */
-Boolean isSequential(String hex1, String hex2) {
-  int i1, i2;
-  i1 = unhex(hex1);
-  i2 = unhex(hex2);
-  return i2==(i1+1);
 }
