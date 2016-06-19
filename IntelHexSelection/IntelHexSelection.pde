@@ -1,12 +1,32 @@
-//Possible Bugs:
-//Processing only deals with signed integers, so when converting the binary into hex, there's a chance that
-//signs get in the way. 
+/*
+README:
+TO USE:
+  Press "Ctrl + R" to run the sketch or press play. Follow the selection process
+written on screen. Once you have made your selections, type the string "truth" into
+the memory bank selection menu and press enter. The program will then compile your
+logic choices and write a hex file. Intermediary outputs, such as the truth table or
+results of the logic functions, can be viewed in the console.
 
-//Second Possible Bug; Wikipedia Article on Intel Hex says the Record Checksum should be calculated using the LSB's two's complement. But then goes on to use the
-//two least signifigant digits in its calculation. The C intel hex lib also seems to use the two LSD checksum calculation method. This all works well now, but then what
-// is up with wikipedia?
+To change the name of the intel hex file, change the variable FILENAME found at
+the top of the code. 
+
+If you are having trouble starting the program and you are getting a
+"font not found error", please be sure to move the data folder associated with
+this sketch in to the same folder as the .pde file. They are coupled. All
+intel hex outpus will be written to the data folder. 
+
+Most variables and methods one might want to change are tagged with the comment "To Modify:"
+So if one is looking to expand the functionality of the program, Ctrl+F that tag and find what you are looking for.
+*/
+
+
+
+//Possible Bug; Wikipedia Article on Intel Hex says the Record Checksum should be calculated using the LSB's two's complement. But then goes on to use the
+//two least signifigant digits in its calculation instead of the single LSB. The C intel hex lib also seems to use the two LSD checksum calculation method. This all works well now, but then it
+//would appear wikipedia is broken.
 
 //Intel Hex Writing Variables
+final String FILENAME = "ProcessingCode.hex"; //To Modify: choose your filename;
 
 Table table;
 int addrSize = 12; //Number of Oscillators + DIP Switches
@@ -31,7 +51,7 @@ String CustomLogic2 = "Cust2";
 final int WAVEFORMFRONT = 6; // Determines where to treat selections as waveforms, and where to treat as individual logic.
                              // To Modify: if adding more than the two default custom logics, increment this.
                              // Otherwise it will treat your new logic function as a waveform, and break.
-final String FILENAME = "ProcessingCode.hex"; //To Modify: choose your filename;
+
 Table WaveformSelection = new Table();
 int Logic = -1;
 Boolean Confirm = false;
@@ -592,7 +612,7 @@ String waveformCOS(String str){
   float period = 2*3.14159;
   float scaleM = unbinary("1111"+"1111");//Vertical stretch to fit the address space;
   float scaleB = 1;
-  float operation = cos(addr/maxAddr*period);//To Modify: Add your own waveform function here. Must have max/min from 1 to -1 and have a period of 2PI
+  float operation = cos(addr/maxAddr*period);
   int answer = int((operation+scaleB)*scaleM/2);
   outputs = binary(answer,outSize);
   //println(outputs+"_"+answer);
@@ -623,8 +643,7 @@ String waveform???(String str){
 
 
 /*
-* To modify: Performs ???? Logic on all 8 input oscillators. Its fixed at 8 because it makes an easy template 
-* for those who want to roll their own logic function.
+* To modify: Performs ???? Logic
 */
 int logicCUST_1(String str){
   int a,b,c,d,e,f,g,h, answer;
@@ -644,8 +663,7 @@ int logicCUST_1(String str){
 }
 
 /*
-* To modify: Performs ???? Logic on all 8 input oscillators. Its fixed at 8 because it makes an easy template 
-* for those who want to roll their own logic function.
+* To modify: Performs ???? Logic
 */
 int logicCUST_2(String str){
   int a,b,c,d,e,f,g,h, answer;
