@@ -7,17 +7,17 @@
 // is up with wikipedia?
 
 //Intel Hex Writing Variables
-PrintWriter writer;
+
 Table table;
-int addrSize = 8; //Number of Oscillators
-int outSize = 8;
+int addrSize = 12; //Number of Oscillators + DIP Switches
+int outSize = 8; //Number of output pins. WARNING: STATIC. Intel Hex only works with 8-bit outputs.
 int[] values = new int[addrSize];
 String TruthTableName = "test.csv";
 String addrName = "addr";
 String outName = "out";
-final int NUM_SELECTORS = 4; //number of DIP switch;
+final int NUM_SELECTORS = 4; //number of DIP switches;
 final int NUM_BANKS = int(pow(2,NUM_SELECTORS));
-final int NUM_OSC = addrSize;
+final int NUM_OSC = 8;
 
 //GUI Variables
 String selAsk = "Enter Memory Bank: ";
@@ -27,6 +27,7 @@ String BankSelect ="";
 int PinSelect = -1;
 String CustomLogic1 = "Cust1"; //To Modify: Add a brief title of your custom logic. These are the Title Strings
 String CustomLogic2 = "Cust2";
+final String FILENAME = "ProcessingCode.hex"; //To Modify: choose your filename;
 Table WaveformSelection = new Table();
 int Logic = -1;
 Boolean Confirm = false;
@@ -77,7 +78,6 @@ void draw() {
     text(Logic, 600,35+25);
   }else{Logic= -1;}
   
-  
   if(Menu == 0){//Everything for  selecting Memory Bank;
     selAsk = "Enter Memory Bank";
     if(Confirm){
@@ -111,7 +111,6 @@ void draw() {
     }
   }//end Menu 3;
   
-  
   if(ProcessSelection){ //Everything for Processing the SELECTION. MemBank, Pin, Logic, and sending it to the IHex Parser.
     Menu = -1;
     ProcessSelection = false;
@@ -140,8 +139,6 @@ void draw() {
   }
 }//End Draw()
   
-
-
 void keyPressed() {
   if (keyCode == BACKSPACE) {
     if (keyBoardText.length() > 0) {
@@ -204,7 +201,6 @@ Table tableGrouper(Table waveforms) {
 *  b
 *  .
 *  n
-*
 * This re-processes the strings outputed by tableGrouper into something more iterable for the truthTableGenerator
 */
 Table StringToTable(String delmintedString, Table table, int column) {
@@ -223,7 +219,6 @@ Table StringToTable(String delmintedString, Table table, int column) {
  * 1,2   1   2
  * 3,b   3   b
  * 3,1   3   1 
- *
  * Tables must have same number of rows. Uses t1 rowLength to determine final output size.
  */
 Table pairTwoIntTables(Table t1, Table t2) {
@@ -259,9 +254,6 @@ void printWaveform(Table waveform) {
   }
 }
 
-
-
-
 //==================================================================================================
 //============ Section 3: Intel Hex Generation =====================================================
 //==================================================================================================
@@ -284,12 +276,22 @@ void BurnIntelHex(Table waveformSelection){
    printBinaryTruthTable(truthTable);
    //printOutputs(truthTable);
    //printAddresses(truthTable);
-   //recordTable = createIHex(truthTable);
-   
+   recordTable = createIHex(truthTable);
+   writeHexTable(recordTable);
    exit();
   
 }
-
+void writeHexTable(Table table){
+  println("Writing the following to hex file "+ FILENAME+ ": ");
+  PrintWriter output;
+  output = createWriter(FILENAME);
+  for( TableRow row: table.rows() ){
+    output.println(row.getString(0));
+    println(row.getString(0));
+  }
+  output.flush();
+  output.close();
+}
 void PrintWaveformSelection(){
   println("  Memory Bank:\t  Pin:\t Logic Function:");
  for (TableRow row: WaveformSelection.rows()){
@@ -315,7 +317,7 @@ Table createIHex(Table truthTable) {
   
   for (TableRow row : truthTable.rows()) {
     hexByte = hex(unbinary(row.getString(1)), 2);
-    currAddr = hex(unbinary(row.getString(0)), 2);
+    currAddr = hex(unbinary(row.getString(0)), 3);
     if(firstAddr){
       recordAddr = currAddr;       
       recordData = hexByte;
@@ -324,10 +326,11 @@ Table createIHex(Table truthTable) {
       firstAddr = false;
       byteCount++;
     }else{   
-      if( isSequential(lastAddr,currAddr) && byteCount < byteLimit){ //Test to determine whether to start a new record (new line), or continue concantinating data.
+      if( isSequential(lastAddr,currAddr) & byteCount < byteLimit){ //Test to determine whether to start a new record (new line), or continue concantinating data.
        recordData = recordData + hexByte;
        byteCount++;
        runningSum= hex( unhex(runningSum) + unhex(hexByte)); //Running sum on the data for the checksum.
+       
       }else{//Need to start a new record!
         TableRow newRow = recordTable.addRow();
         newRow.setString(0, processRecord(recordAddr, recordData, byteCount, runningSum));
@@ -336,7 +339,7 @@ Table createIHex(Table truthTable) {
         recordData = hexByte;
         runningSum = hexByte;
         
-        byteCount = 0;
+        byteCount = 1;
       }
       
     }
@@ -570,12 +573,9 @@ int logicCUST_2(String str){
   return answer;
 }
 
-
-
-
-
- 
-
+/*
+*Simulates a bank of 8 oscillators and creates a table of all possible states.
+*/
 Table OscillatorGenerator(){
   Table oscillators = new Table();
   int k = int(pow(2,NUM_OSC));
