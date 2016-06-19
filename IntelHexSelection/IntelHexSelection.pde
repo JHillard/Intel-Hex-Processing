@@ -20,6 +20,7 @@ final int NUM_BANKS = int(pow(2,NUM_SELECTORS));
 final int NUM_OSC = 8;
 
 //GUI Variables
+PFont font;
 String selAsk = "Enter Memory Bank: ";
 String selMenu ="";
 String keyBoardText = "";
@@ -27,6 +28,9 @@ String BankSelect ="";
 int PinSelect = -1;
 String CustomLogic1 = "Cust1"; //To Modify: Add a brief title of your custom logic. These are the Title Strings
 String CustomLogic2 = "Cust2";
+final int WAVEFORMFRONT = 6; // Determines where to treat selections as waveforms, and where to treat as individual logic.
+                             // To Modify: if adding more than the two default custom logics, increment this.
+                             // Otherwise it will treat your new logic function as a waveform, and break.
 final String FILENAME = "ProcessingCode.hex"; //To Modify: choose your filename;
 Table WaveformSelection = new Table();
 int Logic = -1;
@@ -40,6 +44,7 @@ int bg = 190;
 //============ Section 1: GUI and User Input   =====================================================
 //==================================================================================================
 void setup() {
+  font = loadFont("Consolas-20.vlw");
   size(1080, 450);
   textAlign(CENTER, CENTER);
   textSize(12);
@@ -50,32 +55,44 @@ void setup() {
 }
 
 void draw() {
-  background(bg);
+  color darkBlue = color(50,55,100);
+  color white = color(255,255,255);
+  int offset = 40;
+  
+  textFont(font);
+  fill(white);
+  background(darkBlue);
   textSize(10);
+  textAlign(RIGHT,TOP);
+  String warning = "WARNING: This program does not error check your inputs.";
+  String warning2 = "If you mistype a memory address, this program will attempt to make it.\n";
+  text(warning + warning2,width-3,5);
   textAlign(RIGHT,BOTTOM);
-  text("Type \"truth\" to Burn Logic Selections to Hex file.\nPress Delete to go Back\n Memory Selections to be written are shown in the Console below this window",width-3,height);
+  String instructions = "Press Delete to go Back\nType \"truth\" and press ENTER in the memory bank window to Burn Logic Selections to a Hex file.\n";
+  text(instructions + "Memory Selections to be written are shown in the Console below this window",width-3,height);
   textSize(30);
   textAlign(CENTER, CENTER);
   text(selAsk, 0, 0, width, height);
   
   if(Menu != 2) text(keyBoardText, 0, 25, width, height);
-  else text(keyBoardText, width/2, 350);
+  else text(keyBoardText, width/2, 360);//To Modify: If you added extra functions to the selection screen, you may need to move down where the
+                                      //input text displays on the screen to make everything fit.
   
   if(Menu > 0){//If/else selected Memory Bank
     textAlign(LEFT);
-    text("SelectedBank: ", 15,35);
-    text(BankSelect, 20,35+25); 
+    text("SelectedBank: ", 15,offset);
+    text(BankSelect, 20,offset+25); 
     //println(Menu);
   }else{BankSelect = "";}  
   if(Menu > 1){//If/else selected Out Pin.
     textAlign(LEFT);
-    text("Selected Pin: ", 300,35);
-    text(PinSelect, 300,35+25);  
+    text("Selected Pin: ", 300,offset);
+    text(PinSelect, 300,offset+25);  
   }else{PinSelect = -1;}
   if(Menu >2){//If/else selected Logic Output
     textAlign(LEFT);
-    text("Selected Logic: ", 600,35);
-    text(Logic, 600,35+25);
+    text("Selected Logic: ", 600,offset);
+    text(Logic, 600,offset+25);
   }else{Logic= -1;}
   
   if(Menu == 0){//Everything for  selecting Memory Bank;
@@ -94,8 +111,8 @@ void draw() {
   
   if(Menu == 2){//Everything for selecting Logic Function
     selAsk = "Select Logic Function for Pin " + PinSelect + ":";
-    selAsk = selAsk+ "\n1: All & (AND) \n2: All | (OR)\n3: All ^ (XOR)\n4: " +CustomLogic1 + "\n5: "+CustomLogic2 + "\n";   
-    //To Modify: If you want to add more than two Custom logic commands, add their Title String here.
+    selAsk = selAsk+ "\n1: All & (AND) \n2: All | (OR)\n3: All ^ (XOR)\n4: " +CustomLogic1 + "\n5: "+CustomLogic2 + "\n6: Sin Wave";   
+    //To Modify: If you want to add more than two Custom logic commands, add their Title String here and fix the WAVEFORM FRONT Variable.
     if(Confirm){
      Logic = int(keyBoardText); 
     }
@@ -264,27 +281,19 @@ void printWaveform(Table waveform) {
 void BurnIntelHex(Table waveformSelection){
   Table recordTable;
   Table truthTable;
-  
-  //recordTable = createIHex(truthTable); 
-  //for (TableRow row :recordTable.rows()){
-  // println(row.getString(0));   
-  //}
    PrintWaveformSelection();
    Table inputs = OscillatorGenerator();
    truthTable = truthtableGenerator(waveformSelection,inputs);
-   println("Truth Table Generated!");
+   println("Truth Table Generated! Outputs below:");
    printBinaryTruthTable(truthTable);
-   //printOutputs(truthTable);
-   //printAddresses(truthTable);
    recordTable = createIHex(truthTable);
    writeHexTable(recordTable);
-   exit();
-  
+   exit();  
 }
 void writeHexTable(Table table){
-  println("Writing the following to hex file "+ FILENAME+ ": ");
+  println("Writing the following to hex file: "+ FILENAME+ ": ");
   PrintWriter output;
-  output = createWriter(FILENAME);
+  output = createWriter("data/" +FILENAME);
   for( TableRow row: table.rows() ){
     output.println(row.getString(0));
     println(row.getString(0));
@@ -407,6 +416,8 @@ Boolean isSequential(String hex1, String hex2) {
 * Address3, Output3
 */
 Table truthtableGenerator(Table waveformSelection, Table inputs){
+  println("Logic Function Outputs:");
+  println("(Membank_InputBin_OutputBin_OutputInt)");
   Table truthTable = new Table();
   truthTable.addColumn("Address", Table.STRING);
   truthTable.addColumn("Outputs", Table.STRING);
@@ -417,22 +428,25 @@ Table truthtableGenerator(Table waveformSelection, Table inputs){
     String logicString = selection.getString(2);//"Logic"
     Table pT = new Table(); Table lT = new Table();
     pT.addColumn();lT.addColumn();
-    println(pinString);
-    println(logicString);
-    println(selAddr);
     StringToTable(pinString,pT,0);
     StringToTable(logicString,lT,0);
     Table pinAndLogic = pairTwoIntTables(pT,lT);
-    printIntTable(pinAndLogic);
+    int waveform= -1;
     for( TableRow oscRow: inputs.rows()){ //Iterates through every input.
        String outputs = "0000"+"0000"; //Default 8 output pins. 
        String input = oscRow.getString(0);
        for( TableRow action: pinAndLogic.rows()){
            int pin = action.getInt(0);
            int logicCode = action.getInt(1);
+           if(logicCode >= WAVEFORMFRONT){
+             waveform = logicCode;
+             break;
+           }
            outputs = replaceCharAt(pin, str(executeLogic(logicCode, input)).toCharArray()[0], outputs );
            //println("p"+pin+"_l"+logicCode+"_in"+input+"_OU"+outputs);
        }
+       if(waveform != -1){outputs = executeWaveform(waveform,input);}
+       println(selAddr+"_"+input+"_"+outputs+"_"+str(unbinary(outputs)));
        TableRow singleLine = truthTable.addRow();
        singleLine.setString(0,selAddr+input); //Sets truth table address
        singleLine.setString(1,outputs);   //Sets truth table output.
@@ -459,6 +473,8 @@ int executeLogic( int logicCode, String inputs){
    case 5:
      output = logicCUST_2(inputs); 
      break;
+   
+   
  //To Modify: add extra custom logic methods to here and to the selection menu in section 1.
    default: output = 0; break; 
    //default: output = logicAND_8(inputs); break; 
@@ -474,7 +490,7 @@ int executeLogic( int logicCode, String inputs){
 int logicAND_8(String str){
   int a,b,c,d,e,f,g,h, answer;
   int normal = int('0');
-  println("Inputs_" + str);
+  //println("Inputs_" + str);
   a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
   b = int(str.charAt(1))-normal;
   c = int(str.charAt(2))-normal;
@@ -483,7 +499,7 @@ int logicAND_8(String str){
   f = int(str.charAt(5))-normal;
   g = int(str.charAt(6))-normal;
   h = int(str.charAt(7))-normal;
-  println(a+"_&"+ b+c+d+e+f+g+h);
+  //println(a+"_&"+ b+c+d+e+f+g+h);
   answer = a & b & c & d & e & f & g & h ;
   return answer;
 }
@@ -495,7 +511,7 @@ int logicAND_8(String str){
 int logicOR_8(String str){
   int a,b,c,d,e,f,g,h, answer;
   int normal = int('0');
-  println("Inputs_" + str);
+  //println("Inputs_" + str);
   a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
   b = int(str.charAt(1))-normal;
   c = int(str.charAt(2))-normal;
@@ -504,7 +520,7 @@ int logicOR_8(String str){
   f = int(str.charAt(5))-normal;
   g = int(str.charAt(6))-normal;
   h = int(str.charAt(7))-normal;
-  println(a+"_|"+ b+c+d+e+f+g+h);
+  //println(a+"_|"+ b+c+d+e+f+g+h);
   answer = a | b | c | d | e | f | g | h ; 
   return answer;
 }
@@ -516,7 +532,7 @@ int logicOR_8(String str){
 int logicXOR_8(String str){
   int a,b,c,d,e,f,g,h, answer;
   int normal = int('0');
-  println("Inputs_" + str);
+  //println("Inputs_" + str);
   a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
   b = int(str.charAt(1))-normal;
   c = int(str.charAt(2))-normal;
@@ -525,10 +541,85 @@ int logicXOR_8(String str){
   f = int(str.charAt(5))-normal;
   g = int(str.charAt(6))-normal;
   h = int(str.charAt(7))-normal;
-  println(a+"_^"+ b+c+d+e+f+g+h);
+  //println(a+"_^"+ b+c+d+e+f+g+h);
   answer = a ^ b ^ c ^ d ^ e ^ f ^ g ^ h ; //If spinning your own logic function, change these symbols here.
   return answer;
 }
+
+String executeWaveform(int selection, String inputs){
+ String output;
+ switch(selection){
+   case 6:
+       output = waveformSIN(inputs);
+       break;
+   case 7:
+       //output = waveformCOS(inputs);
+   /*To Modify: Adding a waveform? uncomment the waveform below and add it's method.
+   case 8:
+       output = waveform???(inputs);
+       break;
+   */
+   default:
+       output = "0000"+"0000";
+       break;
+ }
+   return output; 
+}
+/*
+*Creates sin wave from incrementing addresses.
+*/
+String waveformSIN(String str){
+  String outputs = "0000"+"0000";
+  float addr = unbinary(str);
+  float maxAddr = unbinary("1111"+"1111"); //Assumes 8 bit address space;
+  float period = 2*3.14159;
+  float scaleM = unbinary("1111"+"1111");//Vertical stretch to fit the address space;
+  float scaleB = 1;
+  float operation = sin(addr/maxAddr*period);
+  int answer = int((operation+scaleB)*scaleM/2);
+  outputs = binary(answer,outSize);
+  //println(outputs+"_"+answer);
+  return outputs;
+}
+
+/*
+*Creates cos wave from incrementing addresses.
+*/
+String waveformCOS(String str){
+  String outputs = "0000"+"0000";
+  float addr = unbinary(str);
+  float maxAddr = unbinary("1111"+"1111"); //Assumes 8 bit address space;
+  float period = 2*3.14159;
+  float scaleM = unbinary("1111"+"1111");//Vertical stretch to fit the address space;
+  float scaleB = 1;
+  float operation = cos(addr/maxAddr*period);//To Modify: Add your own waveform function here. Must have max/min from 1 to -1 and have a period of 2PI
+  int answer = int((operation+scaleB)*scaleM/2);
+  outputs = binary(answer,outSize);
+  //println(outputs+"_"+answer);
+  return outputs;
+}
+
+
+/*
+*Creates ??? wave from incrementing addresses.
+*/
+/*To Modify: Uncomment and change the operation function below.
+String waveform???(String str){
+  String outputs = "0000"+"0000";
+  float addr = unbinary(str);
+  float maxAddr = unbinary("1111"+"1111"); //Assumes 8 bit address space;
+  float period = 2*3.14159;
+  float scaleM = unbinary("1111"+"1111");//Vertical stretch to fit the address space;
+  float scaleB = 1;
+  float operation = cos(addr/maxAddr*period);//To Modify: Add your own waveform function here. Must have max/min from 1 to -1 and have a period of 2PI
+  int answer = int((operation+scaleB)*scaleM/2);
+  outputs = binary(answer,outSize);
+  //println(outputs+"_"+answer);
+  return outputs;
+}
+*/
+
+
 
 
 /*
@@ -538,7 +629,7 @@ int logicXOR_8(String str){
 int logicCUST_1(String str){
   int a,b,c,d,e,f,g,h, answer;
   int normal = int('0');
-  println("Inputs_" + str);
+  //println("Inputs_" + str);
   a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
   b = int(str.charAt(1))-normal;
   c = int(str.charAt(2))-normal;
@@ -547,7 +638,7 @@ int logicCUST_1(String str){
   f = int(str.charAt(5))-normal;
   g = int(str.charAt(6))-normal;
   h = int(str.charAt(7))-normal;
-  println(a+"_?!"+ b+c+d+e+f+g+h);
+  //println(a+"_?!"+ b+c+d+e+f+g+h);
   answer = a & b & c & d & e & f & g & h ; //To Modify: If spinning your own logic function, change these symbols here.
   return answer;
 }
@@ -559,7 +650,7 @@ int logicCUST_1(String str){
 int logicCUST_2(String str){
   int a,b,c,d,e,f,g,h, answer;
   int normal = int('0');
-  println("Inputs_" + str);
+  //println("Inputs_" + str);
   a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
   b = int(str.charAt(1))-normal;
   c = int(str.charAt(2))-normal;
@@ -568,7 +659,7 @@ int logicCUST_2(String str){
   f = int(str.charAt(5))-normal;
   g = int(str.charAt(6))-normal;
   h = int(str.charAt(7))-normal;
-  println(a+"_?!"+ b+c+d+e+f+g+h);
+  //println(a+"_?!"+ b+c+d+e+f+g+h);
   answer = a & b & c & d & e & f & g & h ; //To Modify: If spinning your own logic function, change these symbols here.
   return answer;
 }
