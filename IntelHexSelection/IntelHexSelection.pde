@@ -59,6 +59,12 @@ Boolean BackStep = false;
 Boolean ProcessSelection = false;
 int Menu = 0;
 int bg = 190;
+int selectTextOffset = 125;
+
+
+color darkBlue = color(50,55,100);
+color white = color(255,255,255);
+color highlightColor = color(215,215,255);
 
 //==================================================================================================
 //============ Section 1: GUI and User Input   =====================================================
@@ -75,9 +81,7 @@ void setup() {
 }
 
 void draw() {
-  color darkBlue = color(50,55,100);
-  color white = color(255,255,255);
-  int offset = 40;
+  int offset = 40+selectTextOffset;
   
   textFont(font);
   fill(white);
@@ -90,17 +94,55 @@ void draw() {
   textAlign(RIGHT,BOTTOM);
   String instructions = "Press Delete to go Back\nType \"truth\" and press ENTER in the memory bank window to Burn Logic Selections to a Hex file.\n";
   text(instructions + "Memory Selections to be written are shown in the Console below this window",width-3,height);
-  textSize(30);
+
+  
+  
+  textSize(14);
   textAlign(CENTER, CENTER);
-  text(selAsk, 0, 0, width, height);
+  int graphicMid = width/2;
+  int graphicLeftStart = 100;
+  int inpBlockWidth = 13;
+  int graphicHeight = 60;
+  int inpBlockNum = 8;
+  int graphicTopStart = 25;
+  
+  String bank = "Memory Banks:\nXXXX";
+  if (Menu>0) bank = "Memory Bank:\n" + BankSelect; 
+  textBox(bank, graphicMid-377, graphicTopStart, 160, 60, Menu==0|| Menu==3);
+  for (int i = 0; i < inpBlockNum; i = i+1){
+     textBox( "", graphicMid -210 + i*20, graphicTopStart, inpBlockWidth, 2*graphicHeight/3,Menu==3); 
+  }
+  textBox("Random Inputs", graphicMid -210, graphicHeight*3/4+graphicTopStart, 8*20-13/2, graphicHeight/4,Menu==3);
+ 
+  String lf = "??";
+  if (Menu>2) lf = str(Logic);
+  textCirc("Logic\nFunction:\n"+lf, graphicMid, graphicTopStart+graphicHeight/2, 80,80, Menu == 2 || Menu==3); 
+  for (int i = 0; i < inpBlockNum; i = i+1){
+    String b = "x";
+    if (i == PinSelect) b = str(i); 
+    textBox( b, graphicMid + 55+i*20, graphicTopStart, inpBlockWidth, 2*graphicHeight/3,Menu == 1|| Menu==3); 
+    
+  }
+  textBox("Output Bits", graphicMid + 55, graphicHeight*3/4+graphicTopStart, 8*20-13/2, graphicHeight/4, Menu == 1|| Menu==3);
+  
+  
+  
+  
+  textSize(30);
+  textAlign(CENTER, TOP);
+  text(selAsk, 0, offset+30, width, height);
+  textAlign(CENTER,CENTER);
   
   if(Menu != 2) text(keyBoardText, 0, 25, width, height);
-  else text(keyBoardText, width/2, 360);//To Modify: If you added extra functions to the selection screen, you may need to move down where the
-                                      //input text displays on the screen to make everything fit.
+  else{
+    textAlign(LEFT,TOP);
+    text(keyBoardText, width-250,offset+30, width-200,height);//To Modify: If you added extra functions to the selection screen, you may need to move down where the
+    textAlign(CENTER,CENTER);                                      //input text displays on the screen to make everything fit.
+  }
   
   if(Menu > 0){//If/else selected Memory Bank
     textAlign(LEFT);
-    text("SelectedBank: ", 15,offset);
+    text("Selected Bank: ", 15,offset);
     text(BankSelect, 20,offset+25); 
     //println(Menu);
   }else{BankSelect = "";}  
@@ -144,6 +186,10 @@ void draw() {
      String answer = (keyBoardText); 
      if(answer.equals("y")){
        ProcessSelection = true;
+     }
+     if(answer.equals("n")){
+       Menu = 2;
+       BackStep = true;
      }
     }
   }//end Menu 3;
@@ -189,6 +235,31 @@ void keyPressed() {
   }else if (keyCode == ENTER && keyBoardText != ""){Confirm = true;}
 }
 
+void textCirc(String txt, int x1, int y1, int xWidth, int yWidth){
+  boolean highlight = true; 
+  textCirc(txt,x1,y1,xWidth,yWidth,highlight);
+}
+void textCirc(String txt, int x1, int y1, int xWidth, int yWidth, boolean highlight){
+  if (highlight) fill(highlightColor);
+  else  fill(white);
+  ellipse(x1,y1,xWidth,yWidth);
+  textAlign(CENTER, CENTER);
+  fill(darkBlue);
+  text(txt, x1, y1); 
+  fill(white);
+}
+void textBox(String txt, int x1, int y1,int x2,int y2){
+  textBox(txt,x1,y1,x2,y2,false);
+}  
+void textBox(String txt, int x1, int y1,int x2,int y2, boolean highlight){
+ if (highlight) fill(highlightColor);
+ else fill(white);
+ rect(x1,y1,x2,y2);
+ fill(darkBlue);
+ textAlign(CENTER, CENTER);
+ text(txt, (x2)/2+x1, (y2)/2+y1 ); 
+ fill(white);
+}
 //==================================================================================================
 //============ Section 2: Table Translation and Grouping============================================
 //==================================================================================================
