@@ -86,13 +86,13 @@ void draw() {
   textFont(font);
   fill(white);
   background(darkBlue);
-  textSize(10);
+  textSize(13);
   textAlign(RIGHT,TOP);
   String warning = "WARNING: This program does not error check your inputs.";
   String warning2 = "If you mistype a memory address, this program will attempt to make it.\n";
   text(warning + warning2,width-3,5);
   textAlign(RIGHT,BOTTOM);
-  String instructions = "Press Delete to go Back\nType \"truth\" and press ENTER in the memory bank window to Burn Logic Selections to a Hex file.\n";
+  String instructions = "Press Delete to go Back a selection\nType \"truth\" and press ENTER in the memory bank window\n to Burn Logic Selections to a Hex file.\n";
   text(instructions + "Memory Selections to be written are shown in the Console below this window",width-3,height);
 
   
