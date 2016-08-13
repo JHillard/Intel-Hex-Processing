@@ -186,12 +186,11 @@ void draw() {
      String answer = (keyBoardText); 
      if(answer.equals("y")){
        ProcessSelection = true;
-     }
+     }else Confirm = false; 
      if(answer.equals("n")){
-       Menu = 2;
        BackStep = true;
      }
-    }
+  }
   }//end Menu 3;
   
   if(ProcessSelection){ //Everything for Processing the SELECTION. MemBank, Pin, Logic, and sending it to the IHex Parser.
