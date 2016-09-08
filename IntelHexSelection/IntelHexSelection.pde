@@ -522,6 +522,7 @@ Table truthtableGenerator(Table waveformSelection, Table inputs){
     StringToTable(logicString,lT,0);
     Table pinAndLogic = pairTwoIntTables(pT,lT);
     int waveform= -1;
+    println("Generating Truth Table!!!!");
     for( TableRow oscRow: inputs.rows()){ //Iterates through every input.
        String outputs = "0000"+"0000"; //Default 8 output pins. 
        String input = oscRow.getString(0);
