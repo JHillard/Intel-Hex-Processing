@@ -4,6 +4,9 @@ import java.util.*;
 
 ControlP5 ChipSelect;
 ControlP5 logicFunction;
+  String logicString = "";
+  String logicPrompt = "Arbitrary Logic Function";
+ControlP5 programSelection;
 ControlP5 waveGen;
 ControlP5 defaults;
   Textlabel membankSelectText1;
@@ -12,6 +15,9 @@ ControlP5 defaults;
   Textlabel outpinText2;
   String membankSelection = "";
   String outpinSelection = "";
+  String logicFunctionTag = "Logic Function";
+  String waveGenTag = "Waveform Generator";
+  String selectedProgram = "";
 ControlP5 openingScreen;
   Textlabel opening1;
   Textlabel opening2;
@@ -40,7 +46,7 @@ int col = color(255);
 int prgmState;
 
 void setup() {
-  size(400, 400);
+  size(800, 500);
   smooth();
   EEPROM1 = new ControlP5(this);
   EEPROM1.addToggle(chip1 + "_chosen")
@@ -61,6 +67,7 @@ void setup() {
     ;
   opening1.setPosition(width/2-opening1.getWidth()/2, height/2);
   opening2.setPosition(width/2-opening2.getWidth()/2, height/2+15);
+  
   defaults = new ControlP5(this);
   defaults.setVisible(false);
         int membankXpos = 15;
@@ -171,6 +178,18 @@ void setup() {
           .setPosition(outpinXpos+10, outpinYpos+outpinYspace*9)
           ;                                    
 
+          List l2 = Arrays.asList(logicFunctionTag, waveGenTag);
+          /* add a ScrollableList, by default it behaves like a DropdownList */
+          programSelection = new ControlP5(this);
+          programSelection.addScrollableList("Program_Selection")
+            .setPosition(200, 100)
+            .setSize(200, 100)
+            .setBarHeight(20)
+            .setItemHeight(20)
+            .addItems(l2)
+            // .setType(ScrollableList.LIST) // currently supported DROPDOWN and LIST
+            ;
+
   EEPROM2 = new ControlP5(this);
   EEPROM2.addToggle("toggle2")
     .setPosition(40, 250)
@@ -191,6 +210,19 @@ void setup() {
     .addItems(l)
     // .setType(ScrollableList.LIST) // currently supported DROPDOWN and LIST
     ;
+   
+   logicFunction = new ControlP5(this);
+   logicFunction.addTextfield(logicPrompt)
+     .setPosition(20,100)
+     .setSize(200,20)
+     .setFocus(true)
+     ;
+     
+  waveGen = new ControlP5(this);
+  
+        
+   
+    
 }
 
 
@@ -205,8 +237,19 @@ void draw() {
 void generateSelectionString() {
   membankSelection = str(int(Membank_0)) + str(int(Membank_1)) + str(int(Membank_2)) + str(int(Membank_3));
   outpinSelection = str(int(outpin_0)) + str(int(outpin_1)) + str(int(outpin_2)) + str(int(outpin_3)) + str(int(outpin_4)) + str(int(outpin_5)) + str(int(outpin_6)) + str(int(outpin_7));       
-  println("Bank Selection: " + membankSelection);
-  println("Output Pin Selection: " + outpinSelection);
+  logicString = logicFunction.get(Textfield.class,logicPrompt).getText();
+  //println("Bank Selection: " + membankSelection);
+  //println("Output Pin Selection: " + outpinSelection);
+  println("Logic String: " + logicString);
+  
+}
+
+/*
+*Called everytime program is chosen from programming dropdown menu
+*/
+void Program_Selection(int n){
+ println(programSelection.get(ScrollableList.class, "Program_Selection").getItem(n).get("name"));
+ selectedProgram = (programSelection.get(ScrollableList.class, "Program_Selection").getItem(n).get("name")).toString(); 
 }
 /*
 *Called everytime chip select is chosen from dropdown menu.  
@@ -222,24 +265,32 @@ void manageCanvas() {
   if (selectedChip == chip2) EEPROM2.show();
   if (selectedChip != ""){
     defaults.show();
-    ChipSelect.setPosition(-width/2+25,height-200);
+    programSelection.show();
+    ChipSelect.setPosition(-width/2,height-200);
+    if(selectedProgram == logicFunctionTag) logicFunction.show();
+    if(selectedProgram == waveGenTag) waveGen.show();
   }
   if (selectedChip == ""){
     openingScreen.show();
-    ChipSelect.setPosition(0-100,150);
+    ChipSelect.setPosition(0-100,height/2);
   }
   membankSelectText2.setText(membankSelection);
   outpinText2.setText(outpinSelection);
 }
 
 void cleanCanvas() {
+  programSelection.hide();
   EEPROM1.hide();
   EEPROM2.hide();
   defaults.hide();
+  logicFunction.hide();
+  waveGen.hide();
   openingScreen.hide();
 }
+
+/*
 void dropdown(int n) {
-  /* request the selected item based on index n */
+  /* request the selected item based on index n 
   println(n, ChipSelect.get(ScrollableList.class, "Chip Select").getItem(n));
   /* here an item is stored as a Map  with the following key-value pairs:
    * name, the given name of the item
@@ -247,8 +298,9 @@ void dropdown(int n) {
    * value, the given value of the item, can be changed by using .getItem(n).put("value", "abc"); a value here is of type Object therefore can be anything
    * color, the given color of the item, how to change, see below
    * view, a customizable view, is of type CDrawable 
-   */
+   *//*
   CColor c = new CColor();
   c.setBackground(color(255, 0, 0));
   ChipSelect.get(ScrollableList.class, "Chip Select").getItem(n).put("color", c);
 }
+*/
