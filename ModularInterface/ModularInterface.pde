@@ -2,27 +2,28 @@
 import controlP5.*;
 import java.util.*;
 
+PImage img;
+
 ControlP5 ChipSelect;
+//Logic Function Controller.
 ControlP5 logicFunction;
-  String logicString = "";
-  String logicPrompt = "Arbitrary Logic Function";
+//Selector between logic function and wave generation
 ControlP5 programSelection;
+// Waveform Generation Controller
 ControlP5 waveGen;
+//Controller for Pin selections and things that will always appear despite selections.
 ControlP5 defaults;
   Textlabel membankSelectText1;
   Textlabel membankSelectText2;
   Textlabel outpinText1;
   Textlabel outpinText2;
-  String membankSelection = "";
-  String outpinSelection = "";
-  String logicFunctionTag = "Logic Function";
-  String waveGenTag = "Waveform Generator";
-  String selectedProgram = "";
+//Controller for opening screen. Put tutorial modules or intro text here.
 ControlP5 openingScreen;
   Textlabel opening1;
   Textlabel opening2;
 ControlP5 EEPROM1;
 ControlP5 EEPROM2;
+//Various booleans modified by the above controllers. Doesn't communicate to the rest of program. 
 boolean EEPROM1_chosen = false;
 boolean Membank_0 = false;
 boolean Membank_1 = false;
@@ -36,18 +37,40 @@ boolean outpin_4 = false;
 boolean outpin_5 = false;
 boolean outpin_6 = false;
 boolean outpin_7 = false;
+
+//Controller Strings. These are Strings used by the rest of the program to determine what the user has selected. 
 String selectedChip = "";
 String chip1 = "MC7400";
 String chip2 = "MC0000";
 
+String sinTag = "Sin Wave";
+String cosTag = "Cos Wave";
+String squareTag = "Square Wave";
+String sawTag = "Saw Wave";
+String selectedWave = "";
 
+String logicString = "";
+String logicPrompt = "Arbitrary Logic Function";
 
+String membankSelection = "";
+String outpinSelection = "";
+String logicFunctionTag = "Logic Function";
+String waveGenTag = "Waveform Generator";
+String selectedProgram = "";
+
+//Misc variables.
 int col = color(255);
 int prgmState;
 
 void setup() {
   size(800, 500);
   smooth();
+  
+  
+img = loadImage("M27C512.png");
+
+
+
   EEPROM1 = new ControlP5(this);
   EEPROM1.addToggle(chip1 + "_chosen")
     .setPosition(40, 100)
@@ -62,7 +85,7 @@ void setup() {
     .setPosition(width/2, height/2);
     ;
   opening2 = openingScreen.addTextlabel("opening2")
-    .setText("Click CHIP SELECT to get started.")
+    .setText("SELECT CHIP to get started.")
     .setPosition(width/2, height/2 + 15);
     ;
   opening1.setPosition(width/2-opening1.getWidth()/2, height/2);
@@ -70,7 +93,7 @@ void setup() {
   
   defaults = new ControlP5(this);
   defaults.setVisible(false);
-        int membankXpos = 15;
+        int membankXpos = 200;
         int membankYpos = 35;
         int membankYspace = 20;
         defaults.addToggle("Membank_0")
@@ -107,10 +130,10 @@ void setup() {
           ;
         membankSelectText2 = defaults.addTextlabel("membankSelectText2")
           .setText(membankSelection)
-          .setPosition(membankXpos+10, membankYpos+membankYspace*5)
+          .setPosition(membankXpos+10, membankYpos+membankYspace*5+2)
           ;  
           
-        int outpinXpos = 200;
+        int outpinXpos = 500;
         int outpinYpos = 35;
         int outpinYspace = 20;
         defaults.addToggle("outpin_0")
@@ -175,7 +198,7 @@ void setup() {
           ;
         outpinText2 = defaults.addTextlabel("outpinText2")
           .setText(outpinSelection)
-          .setPosition(outpinXpos+10, outpinYpos+outpinYspace*9)
+          .setPosition(outpinXpos, outpinYpos+outpinYspace*9+2)
           ;                                    
 
           List l2 = Arrays.asList(logicFunctionTag, waveGenTag);
@@ -211,17 +234,25 @@ void setup() {
     // .setType(ScrollableList.LIST) // currently supported DROPDOWN and LIST
     ;
    
+   List l3 = Arrays.asList(sinTag,cosTag,sawTag,squareTag);
+  /* add a ScrollableList, by default it behaves like a DropdownList */
+  waveGen = new ControlP5(this);
+  waveGen.addScrollableList("Wave_Selection")
+    .setPosition(200, 100)
+    .setSize(200, 75)
+    .setBarHeight(20)
+    .setItemHeight(20)
+    .addItems(l3)
+    // .setType(ScrollableList.LIST) // currently supported DROPDOWN and LIST
+    ;
+   
+   
    logicFunction = new ControlP5(this);
    logicFunction.addTextfield(logicPrompt)
-     .setPosition(20,100)
+     .setPosition(200, 100)
      .setSize(200,20)
      .setFocus(true)
-     ;
-     
-  waveGen = new ControlP5(this);
-  
-        
-   
+     ;  
     
 }
 
@@ -232,16 +263,20 @@ void draw() {
   cleanCanvas();
   manageCanvas();
   generateSelectionString();
+  image(img,0,0);
   popMatrix();
 }
+/*
+*Monitors Buttons/Text Fields to appropraitely assign control values based on user input. These variables are what
+* interfaces the graphics module to the rest of the program.
+*/
 void generateSelectionString() {
   membankSelection = str(int(Membank_0)) + str(int(Membank_1)) + str(int(Membank_2)) + str(int(Membank_3));
   outpinSelection = str(int(outpin_0)) + str(int(outpin_1)) + str(int(outpin_2)) + str(int(outpin_3)) + str(int(outpin_4)) + str(int(outpin_5)) + str(int(outpin_6)) + str(int(outpin_7));       
   logicString = logicFunction.get(Textfield.class,logicPrompt).getText();
   //println("Bank Selection: " + membankSelection);
   //println("Output Pin Selection: " + outpinSelection);
-  println("Logic String: " + logicString);
-  
+  //println("Logic String: " + logicString);
 }
 
 /*
@@ -260,24 +295,32 @@ void Chip_Select(int n) {
   selectedChip = (ChipSelect.get(ScrollableList.class, "Chip_Select").getItem(n).get("name")).toString();
   if(selectedChip == "Main Menu") selectedChip = "";
 }
+/*
+* Handles what control elements should be on or off. Repositions some elements as appropriate.
+*/
 void manageCanvas() {
   if (selectedChip == chip1) EEPROM1.show();
   if (selectedChip == chip2) EEPROM2.show();
   if (selectedChip != ""){
     defaults.show();
     programSelection.show();
-    ChipSelect.setPosition(-width/2,height-200);
+    programSelection.setPosition(75,height-200);
+    ChipSelect.setPosition(0-150,height-200);
     if(selectedProgram == logicFunctionTag) logicFunction.show();
     if(selectedProgram == waveGenTag) waveGen.show();
+    logicFunction.setPosition(300,height-200);
+    waveGen.setPosition(300,height-200);
   }
   if (selectedChip == ""){
     openingScreen.show();
-    ChipSelect.setPosition(0-100,height/2);
+    ChipSelect.setPosition(0+100,height/2-50);
   }
   membankSelectText2.setText(membankSelection);
   outpinText2.setText(outpinSelection);
 }
-
+/*
+*Removes all GUI control elements from the canvas. Makes manageCanvas() job easier.
+*/
 void cleanCanvas() {
   programSelection.hide();
   EEPROM1.hide();
@@ -287,20 +330,3 @@ void cleanCanvas() {
   waveGen.hide();
   openingScreen.hide();
 }
-
-/*
-void dropdown(int n) {
-  /* request the selected item based on index n 
-  println(n, ChipSelect.get(ScrollableList.class, "Chip Select").getItem(n));
-  /* here an item is stored as a Map  with the following key-value pairs:
-   * name, the given name of the item
-   * text, the given text of the item by default the same as name
-   * value, the given value of the item, can be changed by using .getItem(n).put("value", "abc"); a value here is of type Object therefore can be anything
-   * color, the given color of the item, how to change, see below
-   * view, a customizable view, is of type CDrawable 
-   *//*
-  CColor c = new CColor();
-  c.setBackground(color(255, 0, 0));
-  ChipSelect.get(ScrollableList.class, "Chip Select").getItem(n).put("color", c);
-}
-*/
