@@ -2,7 +2,16 @@
 import controlP5.*;
 import java.util.*;
 
-PImage img;
+PImage M27C512;
+PImage M2732A;
+
+int defaultColor = 0;
+int currentColor = 0;
+float currentIncrement = 1;
+int flashColor = color(0,160,100);
+float flashRate = 0.1;
+boolean flashing = false;
+boolean firstRun = true;
 
 ControlP5 ChipSelect;
 //Logic Function Controller.
@@ -40,8 +49,8 @@ boolean outpin_7 = false;
 
 //Controller Strings. These are Strings used by the rest of the program to determine what the user has selected. 
 String selectedChip = "";
-String chip1 = "MC7400";
-String chip2 = "MC0000";
+String chip1 = "M27C512";
+String chip2 = "M2732A";
 
 String sinTag = "Sin Wave";
 String cosTag = "Cos Wave";
@@ -50,7 +59,7 @@ String sawTag = "Saw Wave";
 String selectedWave = "";
 
 String logicString = "";
-String logicPrompt = "Arbitrary Logic Function";
+String logicPrompt = "Arbitrary Logic Function        Ex: A0 || ( A7&&A3)";
 
 String membankSelection = "";
 String outpinSelection = "";
@@ -63,12 +72,12 @@ int col = color(255);
 int prgmState;
 
 void setup() {
-  size(800, 500);
+  size(1280, 700);
   smooth();
   
   
-img = loadImage("M27C512.png");
-
+M27C512 = loadImage("M27C512.png");
+M2732A = loadImage("M2732A.png");
 
 
   EEPROM1 = new ControlP5(this);
@@ -93,8 +102,16 @@ img = loadImage("M27C512.png");
   
   defaults = new ControlP5(this);
   defaults.setVisible(false);
-        int membankXpos = 200;
-        int membankYpos = 35;
+        int synthButtonXpos = 950;
+        int synthButtonYpos = 450;
+        defaults.addButton("SYNTHESIZE_HEX")
+            .setValue(0)
+            .setPosition(synthButtonXpos,synthButtonYpos)
+            .setSize(200,40)
+            ;
+            
+        int membankXpos = 330;
+        int membankYpos = 150;
         int membankYspace = 20;
         defaults.addToggle("Membank_0")
           .setPosition(membankXpos, membankYpos + membankYspace*1)
@@ -133,8 +150,8 @@ img = loadImage("M27C512.png");
           .setPosition(membankXpos+10, membankYpos+membankYspace*5+2)
           ;  
           
-        int outpinXpos = 500;
-        int outpinYpos = 35;
+        int outpinXpos = 950;
+        int outpinYpos = 150;
         int outpinYspace = 20;
         defaults.addToggle("outpin_0")
           .setPosition(outpinXpos, outpinYpos + outpinYspace*1)
@@ -194,7 +211,7 @@ img = loadImage("M27C512.png");
           ;
         outpinText1 = defaults.addTextlabel("outpinText1")
           .setText("Select Output Pins")
-          .setPosition(outpinXpos, outpinYpos)
+          .setPosition(outpinXpos-25, outpinYpos)
           ;
         outpinText2 = defaults.addTextlabel("outpinText2")
           .setText(outpinSelection)
@@ -258,12 +275,12 @@ img = loadImage("M27C512.png");
 
 
 void draw() {
-  background(0);
+  background(defaultColor);
+  manageBackground();
   pushMatrix();
   cleanCanvas();
   manageCanvas();
   generateSelectionString();
-  image(img,0,0);
   popMatrix();
 }
 /*
@@ -299,8 +316,14 @@ void Chip_Select(int n) {
 * Handles what control elements should be on or off. Repositions some elements as appropriate.
 */
 void manageCanvas() {
-  if (selectedChip == chip1) EEPROM1.show();
-  if (selectedChip == chip2) EEPROM2.show();
+  if (selectedChip == chip1){
+    //EEPROM1.show();
+    image(M27C512,-180,0);
+  }
+  if (selectedChip == chip2){
+    //EEPROM2.show();
+    image(M2732A,-180,0);
+  }
   if (selectedChip != ""){
     defaults.show();
     programSelection.show();
@@ -313,7 +336,7 @@ void manageCanvas() {
   }
   if (selectedChip == ""){
     openingScreen.show();
-    ChipSelect.setPosition(0+100,height/2-50);
+    ChipSelect.setPosition(0+320,height/2-50);
   }
   membankSelectText2.setText(membankSelection);
   outpinText2.setText(outpinSelection);
@@ -329,4 +352,29 @@ void cleanCanvas() {
   logicFunction.hide();
   waveGen.hide();
   openingScreen.hide();
+}
+
+void SYNTHESIZE_HEX(int a){
+ println("Synthesizing Intel Hex..."); 
+ currentIncrement = 0;
+ if(firstRun){
+   firstRun=!firstRun;
+   return;
+ }
+ flashing = true;
+}
+
+void manageBackground(){
+  background(currentColor);
+  currentIncrement = currentIncrement +  (1- currentIncrement) * flashRate;
+  if(flashing) currentColor = lerpColor(defaultColor, flashColor, currentIncrement);
+  else{ currentColor = lerpColor(flashColor, defaultColor, currentIncrement);}
+ 
+ if(currentColor==flashColor){
+   flashing = false;
+   currentIncrement=0;
+   //println("GotIt!");
+ }
+ //println(flashing);
+
 }
