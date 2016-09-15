@@ -19,26 +19,7 @@ Most variables and methods one might want to change are tagged with the comment 
 So if one is looking to expand the functionality of the program, Ctrl+F that tag and find what you are looking for.
 */
 
-
-
-//Possible Bug; Wikipedia Article on Intel Hex says the Record Checksum should be calculated using the LSB's two's complement. But then goes on to use the
-//two least signifigant digits in its calculation instead of the single LSB. The C intel hex lib also seems to use the two LSD checksum calculation method. This all works well now, but then it
-//would appear wikipedia is broken.
-
-//Intel Hex Writing Variables
-final String FILENAME = "ProcessingCode.hex"; //To Modify: choose your filename;
-
-Table table;
-int addrSize = 12; //Number of Oscillators + DIP Switches
-int outSize = 8; //Number of output pins. WARNING: STATIC. Intel Hex only works with 8-bit outputs.
-int[] values = new int[addrSize];
-String TruthTableName = "test.csv";
-String addrName = "addr";
-String outName = "out";
-final int NUM_SELECTORS = 4; //number of DIP switches;
-final int NUM_BANKS = int(pow(2,NUM_SELECTORS));
-final int NUM_OSC = 8;
-
+//DELETE MEEE ================================================================================
 //GUI Variables
 PFont font;
 String selAsk = "Enter Memory Bank: ";
@@ -66,199 +47,428 @@ color darkBlue = color(50,55,100);
 color white = color(255,255,255);
 color highlightColor = color(215,215,255);
 
-//==================================================================================================
-//============ Section 1: GUI and User Input   =====================================================
-//==================================================================================================
+//=====================================================================================================
+
+//Possible Bug; Wikipedia Article on Intel Hex says the Record Checksum should be calculated using the LSB's two's complement. But then goes on to use the
+//two least signifigant digits in its calculation instead of the single LSB. The C intel hex lib also seems to use the two LSD checksum calculation method. This all works well now, but then it
+//would appear wikipedia is broken.
+
+//Intel Hex Writing Variables
+final String FILENAME = "ProcessingCode.hex"; //To Modify: choose your filename;
+
+Table table;
+//Table WaveformSelection;
+int addrSize = 12; //Number of Oscillators + DIP Switches
+int outSize = 8; //Number of output pins. WARNING: STATIC. Intel Hex only works with 8-bit outputs.
+int[] values = new int[addrSize];
+String TruthTableName = "test.csv";
+String addrName = "addr";
+String outName = "out";
+final int NUM_SELECTORS = 4; //number of DIP switches;
+final int NUM_BANKS = int(pow(2,NUM_SELECTORS));
+final int NUM_OSC = 8;
+
+//GUI Variables
+import controlP5.*;
+import java.util.*;
+
+PImage M27C512;
+PImage M2732A;
+
+int defaultColor = 0;
+int currentColor = 0;
+float currentIncrement = 1;
+int flashColor = color(0,160,100);
+float flashRate = 0.1;
+boolean flashing = false;
+boolean firstRun = true;
+
+ControlP5 ChipSelect;
+//Logic Function Controller.
+ControlP5 logicFunction;
+//Selector between logic function and wave generation
+ControlP5 programSelection;
+// Waveform Generation Controller
+ControlP5 waveGen;
+//Controller for Pin selections and things that will always appear despite selections.
+ControlP5 defaults;
+  Textlabel membankSelectText1;
+  Textlabel membankSelectText2;
+  Textlabel outpinText1;
+  Textlabel outpinText2;
+//Controller for opening screen. Put tutorial modules or intro text here.
+ControlP5 openingScreen;
+  Textlabel opening1;
+  Textlabel opening2;
+ControlP5 EEPROM1;
+ControlP5 EEPROM2;
+//Various booleans modified by the above controllers. Doesn't communicate to the rest of program. 
+boolean EEPROM1_chosen = false;
+boolean Membank_0 = false;
+boolean Membank_1 = false;
+boolean Membank_2 = false;
+boolean Membank_3 = false;
+boolean outpin_0 = false;
+boolean outpin_1 = false;
+boolean outpin_2 = false;
+boolean outpin_3 = false;
+boolean outpin_4 = false;
+boolean outpin_5 = false;
+boolean outpin_6 = false;
+boolean outpin_7 = false;
+
+//Controller Strings. These are Strings used by the rest of the program to determine what the user has selected. 
+String selectedChip = "";
+String chip1 = "M27C512";
+String chip2 = "M2732A";
+
+String sinTag = "Sin Wave";
+String cosTag = "Cos Wave";
+String squareTag = "Square Wave";
+String sawTag = "Saw Wave";
+String selectedWave = "";
+
+String logicString = "";
+String logicPrompt = "Arbitrary Logic Function        Ex: A0 || ( A7&&A3)";
+
+String membankSelection = "";
+String outpinSelection = "";
+String logicFunctionTag = "Logic Function";
+String waveGenTag = "Waveform Generator";
+String selectedProgram = "";
+
+//Misc variables.
+int col = color(255);
+int prgmState;
+
 void setup() {
-  font = loadFont("Consolas-20.vlw");
-  size(1080, 450);
-  textAlign(CENTER, CENTER);
-  textSize(12);
-  fill(0);
   WaveformSelection.addColumn("Memory Bank", Table.STRING);
   WaveformSelection.addColumn("Pin", Table.STRING);
   WaveformSelection.addColumn("Logic", Table.INT);
+
+  
+  
+  size(1280, 700);
+  smooth();
+  
+M27C512 = loadImage("M27C512.png");
+M2732A = loadImage("M2732A.png");
+
+  EEPROM1 = new ControlP5(this);
+  EEPROM1.addToggle(chip1 + "_chosen")
+    .setPosition(40, 100)
+    .setSize(50, 20)
+    .setValue(true)
+    .setMode(ControlP5.SWITCH)
+    ;
+
+  openingScreen = new ControlP5(this);
+  opening1 = openingScreen.addTextlabel("opening1")
+    .setText("Welcome")
+    .setPosition(width/2, height/2);
+    ;
+  opening2 = openingScreen.addTextlabel("opening2")
+    .setText("SELECT CHIP to get started.")
+    .setPosition(width/2, height/2 + 15);
+    ;
+  opening1.setPosition(width/2-opening1.getWidth()/2, height/2);
+  opening2.setPosition(width/2-opening2.getWidth()/2, height/2+15);
+  
+  defaults = new ControlP5(this);
+  defaults.setVisible(false);
+        int synthButtonXpos = 950;
+        int synthButtonYpos = 450;
+        defaults.addButton("SYNTHESIZE_HEX")
+            .setValue(0)
+            .setPosition(synthButtonXpos,synthButtonYpos)
+            .setSize(200,40)
+            ;
+            
+        int membankXpos = 330;
+        int membankYpos = 150;
+        int membankYspace = 20;
+        defaults.addToggle("Membank_0")
+          .setPosition(membankXpos, membankYpos + membankYspace*1)
+          .setSize(50, 20)
+          .setValue(false)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        defaults.addToggle("Membank_1")
+          .setPosition(membankXpos, membankYpos + membankYspace*2)
+          .setSize(50, 20)
+          .setValue(true)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        defaults.addToggle("Membank_2")
+          .setPosition(membankXpos, membankYpos + membankYspace*3)
+          .setSize(50, 20)
+          .setValue(false)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        defaults.addToggle("Membank_3")
+          .setPosition(membankXpos, membankYpos + membankYspace*4)
+          .setSize(50, 20)
+          .setValue(false)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        membankSelectText1 = defaults.addTextlabel("membankSelectText1")
+          .setText("Select Memory Bank")
+          .setPosition(membankXpos, membankYpos)
+          ;
+        membankSelectText2 = defaults.addTextlabel("membankSelectText2")
+          .setText(membankSelection)
+          .setPosition(membankXpos+10, membankYpos+membankYspace*5+2)
+          ;  
+          
+        int outpinXpos = 950;
+        int outpinYpos = 150;
+        int outpinYspace = 20;
+        defaults.addToggle("outpin_0")
+          .setPosition(outpinXpos, outpinYpos + outpinYspace*1)
+          .setSize(50, 20)
+          .setValue(false)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        defaults.addToggle("outpin_1")
+          .setPosition(outpinXpos, outpinYpos + outpinYspace*2)
+          .setSize(50, 20)
+          .setValue(true)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        defaults.addToggle("outpin_2")
+          .setPosition(outpinXpos, outpinYpos + outpinYspace*3)
+          .setSize(50, 20)
+          .setValue(false)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        defaults.addToggle("outpin_3")
+          .setPosition(outpinXpos, outpinYpos + outpinYspace*4)
+          .setSize(50, 20)
+          .setValue(false)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+          defaults.addToggle("outpin_4")
+          .setPosition(outpinXpos, outpinYpos + outpinYspace*5)
+          .setSize(50, 20)
+          .setValue(false)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        defaults.addToggle("outpin_5")
+          .setPosition(outpinXpos, outpinYpos + outpinYspace*6)
+          .setSize(50, 20)
+          .setValue(true)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        defaults.addToggle("outpin_6")
+          .setPosition(outpinXpos, outpinYpos + outpinYspace*7)
+          .setSize(50, 20)
+          .setValue(false)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        defaults.addToggle("outpin_7")
+          .setPosition(outpinXpos, outpinYpos + outpinYspace*8)
+          .setSize(50, 20)
+          .setValue(false)
+          .setCaptionLabel("")
+          .setMode(ControlP5.SWITCH)
+          ;
+        outpinText1 = defaults.addTextlabel("outpinText1")
+          .setText("Select Output Pins")
+          .setPosition(outpinXpos-25, outpinYpos)
+          ;
+        outpinText2 = defaults.addTextlabel("outpinText2")
+          .setText(outpinSelection)
+          .setPosition(outpinXpos, outpinYpos+outpinYspace*9+2)
+          ;                                    
+
+          List l2 = Arrays.asList(logicFunctionTag, waveGenTag);
+          /* add a ScrollableList, by default it behaves like a DropdownList */
+          programSelection = new ControlP5(this);
+          programSelection.addScrollableList("Program_Selection")
+            .setPosition(200, 100)
+            .setSize(200, 100)
+            .setBarHeight(20)
+            .setItemHeight(20)
+            .addItems(l2)
+            // .setType(ScrollableList.LIST) // currently supported DROPDOWN and LIST
+            ;
+
+  EEPROM2 = new ControlP5(this);
+  EEPROM2.addToggle("toggle2")
+    .setPosition(40, 250)
+    .setSize(50, 20)
+    .setValue(true)
+    .setMode(ControlP5.SWITCH)
+    ;   
+
+
+  List l = Arrays.asList(chip1, chip2, "Main Menu");
+  /* add a ScrollableList, by default it behaves like a DropdownList */
+  ChipSelect = new ControlP5(this);
+  ChipSelect.addScrollableList("Chip_Select")
+    .setPosition(200, 100)
+    .setSize(200, 100)
+    .setBarHeight(20)
+    .setItemHeight(20)
+    .addItems(l)
+    // .setType(ScrollableList.LIST) // currently supported DROPDOWN and LIST
+    ;
+   
+   List l3 = Arrays.asList(sinTag,cosTag,sawTag,squareTag);
+  /* add a ScrollableList, by default it behaves like a DropdownList */
+  waveGen = new ControlP5(this);
+  waveGen.addScrollableList("Wave_Selection")
+    .setPosition(200, 100)
+    .setSize(200, 75)
+    .setBarHeight(20)
+    .setItemHeight(20)
+    .addItems(l3)
+    // .setType(ScrollableList.LIST) // currently supported DROPDOWN and LIST
+    ;
+   
+   
+   logicFunction = new ControlP5(this);
+   logicFunction.addTextfield(logicPrompt)
+     .setPosition(200, 100)
+     .setSize(200,20)
+     .setFocus(true)
+     ;  
+    
 }
+
 
 void draw() {
-  int offset = 40+selectTextOffset;
-  
-  textFont(font);
-  fill(white);
-  background(darkBlue);
-  textSize(13);
-  textAlign(RIGHT,TOP);
-  String warning = "WARNING: This program does not error check your inputs.";
-  String warning2 = "If you mistype a memory address, this program will attempt to make it.\n";
-  text(warning + warning2,width-3,5);
-  textAlign(RIGHT,BOTTOM);
-  String instructions = "Press Delete to go Back a selection\nType \"truth\" and press ENTER in the memory bank window\n to Burn Logic Selections to a Hex file.\n";
-  text(instructions + "Memory Selections to be written are shown in the Console below this window",width-3,height);
+  background(defaultColor);
+  manageBackground();
+  pushMatrix();
+  cleanCanvas();
+  manageCanvas();
+  generateSelectionString();
+  popMatrix();
+}
+/*
+*Monitors Buttons/Text Fields to appropraitely assign control values based on user input. These variables are what
+* interfaces the graphics module to the rest of the program.
+*/
+void generateSelectionString() {
+  membankSelection = str(int(Membank_0)) + str(int(Membank_1)) + str(int(Membank_2)) + str(int(Membank_3));
+  outpinSelection = str(int(outpin_0)) + str(int(outpin_1)) + str(int(outpin_2)) + str(int(outpin_3)) + str(int(outpin_4)) + str(int(outpin_5)) + str(int(outpin_6)) + str(int(outpin_7));       
+  logicString = logicFunction.get(Textfield.class,logicPrompt).getText();
+  //println("Bank Selection: " + membankSelection);
+  //println("Output Pin Selection: " + outpinSelection);
+  //println("Logic String: " + logicString);
+}
 
-  
-  
-  textSize(14);
-  textAlign(CENTER, CENTER);
-  int graphicMid = width/2;
-  int graphicLeftStart = 100;
-  int inpBlockWidth = 13;
-  int graphicHeight = 60;
-  int inpBlockNum = 8;
-  int graphicTopStart = 25;
-  
-  String bank = "Memory Banks:\nXXXX";
-  if (Menu>0) bank = "Memory Bank:\n" + BankSelect; 
-  textBox(bank, graphicMid-377, graphicTopStart, 160, 60, Menu==0|| Menu==3);
-  for (int i = 0; i < inpBlockNum; i = i+1){
-     textBox( "", graphicMid -210 + i*20, graphicTopStart, inpBlockWidth, 2*graphicHeight/3,Menu==3); 
+/*
+*Called everytime program is chosen from programming dropdown menu
+*/
+void Program_Selection(int n){
+ println(programSelection.get(ScrollableList.class, "Program_Selection").getItem(n).get("name"));
+ selectedProgram = (programSelection.get(ScrollableList.class, "Program_Selection").getItem(n).get("name")).toString(); 
+}
+/*
+*Called everytime chip select is chosen from dropdown menu.  
+ */
+void Chip_Select(int n) {
+  //println( ChipSelect.get(ScrollableList.class, "Chip_Select").getItem(n).get(4));
+  println(ChipSelect.get(ScrollableList.class, "Chip_Select").getItem(n).get("name"));
+  selectedChip = (ChipSelect.get(ScrollableList.class, "Chip_Select").getItem(n).get("name")).toString();
+  if(selectedChip == "Main Menu") selectedChip = "";
+}
+/*
+* Handles what control elements should be on or off. Repositions some elements as appropriate.
+*/
+void manageCanvas() {
+  if (selectedChip == chip1){
+    //EEPROM1.show();
+    image(M27C512,-180,0);
   }
-  textBox("Random Inputs", graphicMid -210, graphicHeight*3/4+graphicTopStart, 8*20-13/2, graphicHeight/4,Menu==3);
+  if (selectedChip == chip2){
+    //EEPROM2.show();
+    image(M2732A,-180,0);
+  }
+  if (selectedChip != ""){
+    defaults.show();
+    programSelection.show();
+    programSelection.setPosition(75,height-200);
+    ChipSelect.setPosition(0-150,height-200);
+    if(selectedProgram == logicFunctionTag) logicFunction.show();
+    if(selectedProgram == waveGenTag) waveGen.show();
+    logicFunction.setPosition(300,height-200);
+    waveGen.setPosition(300,height-200);
+  }
+  if (selectedChip == ""){
+    openingScreen.show();
+    ChipSelect.setPosition(0+320,height/2-50);
+  }
+  membankSelectText2.setText(membankSelection);
+  outpinText2.setText(outpinSelection);
+}
+/*
+*Removes all GUI control elements from the canvas. Makes manageCanvas() job easier.
+*/
+void cleanCanvas() {
+  programSelection.hide();
+  EEPROM1.hide();
+  EEPROM2.hide();
+  defaults.hide();
+  logicFunction.hide();
+  waveGen.hide();
+  openingScreen.hide();
+}
+
+void SYNTHESIZE_HEX(int a){
+ println("Synthesizing Intel Hex..."); 
+ currentIncrement = 0;
+ if(firstRun){
+   firstRun=!firstRun;
+   return;
+ }
+ flashing = true;
+ TableRow newRow = WaveformSelection.addRow();
+ //newRow.setString("Memory Bank", membankSelection);
+ //newRow.setString("Pin", outpinSelection);
+ //newRow.setString("Logic", logicString);
+ newRow.setString("Memory Bank", membankSelection);
+ newRow.setString("Pin", "1");
+ newRow.setInt("Logic", 1);
+ BurnIntelHex(WaveformSelection);   
+ println("SYNTHESIS COMPLETE");
+}
+
+void manageBackground(){
+  background(currentColor);
+  currentIncrement = currentIncrement +  (1- currentIncrement) * flashRate;
+  if(flashing) currentColor = lerpColor(defaultColor, flashColor, currentIncrement);
+  else{ currentColor = lerpColor(flashColor, defaultColor, currentIncrement);}
  
-  String lf = "??";
-  if (Menu>2) lf = str(Logic);
-  textCirc("Logic\nFunction:\n"+lf, graphicMid, graphicTopStart+graphicHeight/2, 80,80, Menu == 2 || Menu==3); 
-  for (int i = 0; i < inpBlockNum; i = i+1){
-    String b = "x";
-    if (i == PinSelect) b = str(i); 
-    textBox( b, graphicMid + 55+i*20, graphicTopStart, inpBlockWidth, 2*graphicHeight/3,Menu == 1|| Menu==3); 
-    
-  }
-  textBox("Output Bits", graphicMid + 55, graphicHeight*3/4+graphicTopStart, 8*20-13/2, graphicHeight/4, Menu == 1|| Menu==3);
-  
-  
-  
-  
-  textSize(30);
-  textAlign(CENTER, TOP);
-  text(selAsk, 0, offset+30, width, height);
-  textAlign(CENTER,CENTER);
-  
-  if(Menu != 2) text(keyBoardText, 0, 25, width, height);
-  else{
-    textAlign(LEFT,TOP);
-    text(keyBoardText, width-250,offset+30, width-200,height);//To Modify: If you added extra functions to the selection screen, you may need to move down where the
-    textAlign(CENTER,CENTER);                                      //input text displays on the screen to make everything fit.
-  }
-  
-  if(Menu > 0){//If/else selected Memory Bank
-    textAlign(LEFT);
-    text("Selected Bank: ", 15,offset);
-    text(BankSelect, 20,offset+25); 
-    //println(Menu);
-  }else{BankSelect = "";}  
-  if(Menu > 1){//If/else selected Out Pin.
-    textAlign(LEFT);
-    text("Selected Pin: ", 300,offset);
-    text(PinSelect, 300,offset+25);  
-  }else{PinSelect = -1;}
-  if(Menu >2){//If/else selected Logic Output
-    textAlign(LEFT);
-    text("Selected Logic: ", 600,offset);
-    text(Logic, 600,offset+25);
-  }else{Logic= -1;}
-  
-  if(Menu == 0){//Everything for  selecting Memory Bank;
-    selAsk = "Enter Memory Bank";
-    if(Confirm){
-      BankSelect = keyBoardText;
-    }   
-  }//End Menu 0;
-  
-  if(Menu == 1){//Everything for selecting Output Pin
-   selAsk = "Select Output Pin(0-7):";
-   if(Confirm){
-      PinSelect = int(keyBoardText);
-   }
-  }//End Menu 1;
-  
-  if(Menu == 2){//Everything for selecting Logic Function
-    selAsk = "Select Logic Function for Pin " + PinSelect + ":";
-    selAsk = selAsk+ "\n1: All & (AND) \n2: All | (OR)\n3: All ^ (XOR)\n4: " +CustomLogic1 + "\n5: "+CustomLogic2 + "\n6: Sin Wave";   
-    //To Modify: If you want to add more than two Custom logic commands, add their Title String here and fix the WAVEFORM FRONT Variable.
-    if(Confirm){
-     Logic = int(keyBoardText); 
-    }
-  }//end Menu 2;
-  
-  if(Menu == 3){//Everything for Processing the SELECTION. MemBank, Pin, Logic.
-    selAsk = "Confirm Selection above: (y/n)";
-    if(Confirm){
-     String answer = (keyBoardText); 
-     if(answer.equals("y")){
-       ProcessSelection = true;
-     }else Confirm = false; 
-     if(answer.equals("n")){
-       BackStep = true;
-     }
-  }
-  }//end Menu 3;
-  
-  if(ProcessSelection){ //Everything for Processing the SELECTION. MemBank, Pin, Logic, and sending it to the IHex Parser.
-    Menu = -1;
-    ProcessSelection = false;
-    //Table Selection = new Table();
-    TableRow newRow = WaveformSelection.addRow();
-    newRow.setString("Memory Bank", BankSelect);
-    newRow.setInt("Pin", PinSelect);
-    newRow.setInt("Logic", Logic);
-    PrintWaveformSelection();
-    text("SDfsdfsdfs",0,0); // Odd Refresh bug needed to move the program forward. Calls a Canvas refresh?
-    BankSelect = "";
-    PinSelect = -1;
-    Logic = -1;
-  }//End Process Selection
-  if(Confirm && keyBoardText.equals("truth")){
-   BurnIntelHex(WaveformSelection); 
-  }  
-  if(Confirm){
-    Confirm=false;
-    keyBoardText = "";
-    Menu ++;    
-  }//End Confirm
-  if(BackStep){
-    BackStep = false;
-    if(Menu>0) Menu--;
-  }
-}//End Draw()
-  
-void keyPressed() {
-  if (keyCode == BACKSPACE) {
-    if (keyBoardText.length() > 0) {
-      keyBoardText = keyBoardText.substring(0, keyBoardText.length()-1);
-    }
-  } else if (keyCode == DELETE) {
-    keyBoardText = "";
-    BackStep = true; 
-  } else if (keyCode != SHIFT && keyCode != CONTROL && keyCode != ALT && (keyCode != ENTER)) {
-    keyBoardText = keyBoardText + key;
-  }else if (keyCode == ENTER && keyBoardText != ""){Confirm = true;}
+ if(currentColor==flashColor){
+   flashing = false;
+   currentIncrement=0;
+   //println("GotIt!");
+ }
+ //println(flashing);
+
 }
 
-void textCirc(String txt, int x1, int y1, int xWidth, int yWidth){
-  boolean highlight = true; 
-  textCirc(txt,x1,y1,xWidth,yWidth,highlight);
-}
-void textCirc(String txt, int x1, int y1, int xWidth, int yWidth, boolean highlight){
-  if (highlight) fill(highlightColor);
-  else  fill(white);
-  ellipse(x1,y1,xWidth,yWidth);
-  textAlign(CENTER, CENTER);
-  fill(darkBlue);
-  text(txt, x1, y1); 
-  fill(white);
-}
-void textBox(String txt, int x1, int y1,int x2,int y2){
-  textBox(txt,x1,y1,x2,y2,false);
-}  
-void textBox(String txt, int x1, int y1,int x2,int y2, boolean highlight){
- if (highlight) fill(highlightColor);
- else fill(white);
- rect(x1,y1,x2,y2);
- fill(darkBlue);
- textAlign(CENTER, CENTER);
- text(txt, (x2)/2+x1, (y2)/2+y1 ); 
- fill(white);
-}
+  
+
+
+
+
+
+
 //==================================================================================================
 //============ Section 2: Table Translation and Grouping============================================
 //==================================================================================================
