@@ -130,10 +130,10 @@ String selectedChip = "";
 String chip1 = "M27C512";
 String chip2 = "M2732A";
 
-String sinTag = "Sin Wave";
-String cosTag = "Cos Wave";
-String squareTag = "Square Wave";
-String sawTag = "Saw Wave";
+final String sinTag = "Sin Wave";
+final String cosTag = "Cos Wave";
+final String squareTag = "Square Wave";
+final String sawTag = "Saw Wave";
 String selectedWave = "";
 
 String logicString = "";
@@ -395,6 +395,13 @@ void Chip_Select(int n) {
   println(ChipSelect.get(ScrollableList.class, "Chip_Select").getItem(n).get("name"));
   selectedChip = (ChipSelect.get(ScrollableList.class, "Chip_Select").getItem(n).get("name")).toString();
   if(selectedChip == "Main Menu") selectedChip = "";
+}
+/*
+*Called everytime waveform is chosen from waveform dropdown menu
+*/
+void Wave_Selection(int n){
+ println(waveGen.get(ScrollableList.class, "Wave_Selection").getItem(n).get("name"));
+ selectedWave = (waveGen.get(ScrollableList.class, "Wave_Selection").getItem(n).get("name")).toString(); 
 }
 /*
 * Handles what control elements should be on or off. Repositions some elements as appropriate.
@@ -730,7 +737,7 @@ Boolean isSequential(String hex1, String hex2) {
 * Address3, Output3
 */
 Table truthtableGenerator(Table waveformSelection, Table inputs){
-  println("Logic Function Outputs:");
+  println("Function Outputs:");
   println("(Membank_InputBin_OutputBin_OutputInt)");
   Table truthTable = new Table();
   truthTable.addColumn("Address", Table.STRING);
@@ -746,16 +753,22 @@ Table truthtableGenerator(Table waveformSelection, Table inputs){
   //int waveform= -1;
   println("Generating Truth Table!!!!");
   
-  String memorizedAnswer = "";
-  if(useLogic) memorizedAnswer = generateFullLogic(logicString);
-  if(useFunction) memorizedAnswer = generateFullWaveform(selectedWave);
+  String logicAnswer = "";
+  String[] waveAnswer = {};
+  if(selectedProgram == logicFunctionTag) logicAnswer = generateFullLogic(logicString);
+  if(selectedProgram == waveGenTag) waveAnswer = generateFullWaveform(selectedWave).split(",");
   int memPosition = 0;
   for( TableRow oscRow: inputs.rows()){ //Iterates through every input.
     String outputs = "0000"+"0000"; //Default 8 output pins.
     String input = oscRow.getString(0);
     char one = '1';
-    for( int pinIndex=0; pinIndex<pinString.length(); pinIndex++){
-      if(pinString.charAt(pinIndex) == one) outputs = replaceCharAt(pinIndex, memorizedAnswer.charAt(memPosition) , outputs );
+    if(selectedProgram == logicFunctionTag){
+      for( int pinIndex=0; pinIndex<pinString.length(); pinIndex++){
+          if(pinString.charAt(pinIndex) == one) outputs = replaceCharAt(pinIndex, logicAnswer.charAt(memPosition) , outputs );
+      }}
+    if(selectedProgram == waveGenTag){
+      outputs = waveAnswer[memPosition+1];
+      memPosition = memPosition-1;
       }     
     memPosition = memPosition+2;      
     println(selAddr+"_"+input+"_"+outputs+"_"+str(unbinary(outputs)));
@@ -764,33 +777,6 @@ Table truthtableGenerator(Table waveformSelection, Table inputs){
     singleLine.setString(1,outputs);   //Sets truth table output.
   }
 return truthTable;
- 
-    
-    
-    //for( TableRow oscRow: inputs.rows()){ //Iterates through every input.
-    //   String outputs = "0000"+"0000"; //Default 8 output pins. 
-    //   String input = oscRow.getString(0);
-    //   for( TableRow action: pinAndLogic.rows()){
-    //       int pin = action.getInt(0);
-           
-    //       //int logicCode = action.getInt(1);
-    //       //if(logicCode >= WAVEFORMFRONT){
-    //       //  waveform = logicCode;
-    //       //  break;
-    //       //}
-    //       if(useLogic){
-    //         String logicCode=action.getString(1);
-    //         outputs = replaceCharAt(pin, str(executeLogic(logicCode, input)).toCharArray()[0], outputs );
-    //       }
-    //       //println("p"+pin+"_l"+logicCode+"_in"+input+"_OU"+outputs);
-    //   }
-    //   if(waveform != -1){outputs = executeWaveform(waveform,input);}
-    //   println(selAddr+"_"+input+"_"+outputs+"_"+str(unbinary(outputs)));
-    //   TableRow singleLine = truthTable.addRow();
-    //   singleLine.setString(0,selAddr+input); //Sets truth table address
-    //   singleLine.setString(1,outputs);   //Sets truth table output.
-    //} 
-  
 }
 
 String generateFullLogic(String logicFunction){
@@ -870,45 +856,89 @@ catch (Exception e) {
  return false; 
 }
 
-String generateFullWaveform(String wave){
-  
-  
- return "hi"; 
+String generateFullWaveform(String selectedWave){
+  println("Selected Wave: " + selectedWave);
+  switch(selectedWave){
+    case sinTag:
+      return genSin();
+    case cosTag:
+      return genCos();
+    case squareTag:
+      return genSquare();
+    
+    case sawTag:
+       return genSaw();
+    default:
+      println("Error, somehow waveform was not selected properly. Please try again or patch");
+      
+    }
+    return "";
 }
 
-String executeWaveform(int selection, String inputs){
- String output;
- switch(selection){
-   case 6:
-       output = waveformSIN(inputs);
-       break;
-   case 7:
-       //output = waveformCOS(inputs);
-   /*To Modify: Adding a waveform? uncomment the waveform below and add it's method.
-   case 8:
-       output = waveform???(inputs);
-       break;
-   */
-   default:
-       output = "0000"+"0000";
-       break;
- }
-   return output; 
-}
+
 /*
 *Creates sin wave from incrementing addresses.
 */
+String genSin(){
+  String outputs = "0000"+"0000";
+  Table inputs = OscillatorGenerator();
+  float addr;
+  float maxAddr = unbinary("1111"+"1111"); //Assumes 8 bit address space;
+  float period = 2*3.14159;
+  float scaleM = unbinary("1111"+"1111");//Vertical stretch to fit the address space;
+  float scaleB = 1; //Vertical Shift so no negative binary nonesense.
+  outputs = "";
+  for( TableRow state : inputs.rows() ){
+    addr = unbinary(state.getString(0));
+    float operation = sin(addr/maxAddr*period);
+    int answer = int((operation+scaleB)*scaleM/2);
+    outputs = outputs + "," + binary(answer,outSize);
+  }
+  println(outputs);
+  return outputs;
+}
+
+String genCos(){
+  String outputs = "";
+  
+  
+  return outputs;
+}
+
+String genSquare(){
+  String outputs = "";
+  
+  
+  return outputs;
+}  
+
+
+String genSaw(){
+  String outputs = "";
+  
+  
+  return outputs;
+}  
+
+
+
+
 String waveformSIN(String str){
+  Table inputs = OscillatorGenerator();
   String outputs = "0000"+"0000";
   float addr = unbinary(str);
   float maxAddr = unbinary("1111"+"1111"); //Assumes 8 bit address space;
   float period = 2*3.14159;
   float scaleM = unbinary("1111"+"1111");//Vertical stretch to fit the address space;
   float scaleB = 1;
-  float operation = sin(addr/maxAddr*period);
-  int answer = int((operation+scaleB)*scaleM/2);
-  outputs = binary(answer,outSize);
-  //println(outputs+"_"+answer);
+  outputs = "";
+  for( TableRow state : inputs.rows() ){
+    addr = unbinary(state.getString(0));
+    float operation = sin(addr/maxAddr*period);
+    int answer = int((operation+scaleB)*scaleM/2);
+    outputs = outputs + "," + binary(answer,outSize);
+  }
+  println(outputs);
   return outputs;
 }
 
