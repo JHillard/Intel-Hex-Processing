@@ -68,6 +68,12 @@ final int NUM_SELECTORS = 4; //number of DIP switches;
 final int NUM_BANKS = int(pow(2,NUM_SELECTORS));
 final int NUM_OSC = 8;
 
+//Javascript Engine Imports
+import javax.script.*;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+
+
 //GUI Variables
 import controlP5.*;
 import java.util.*;
@@ -118,6 +124,8 @@ boolean outpin_6 = false;
 boolean outpin_7 = false;
 
 //Controller Strings. These are Strings used by the rest of the program to determine what the user has selected. 
+boolean useLogic = true;
+boolean useFunction = false;
 String selectedChip = "";
 String chip1 = "M27C512";
 String chip2 = "M2732A";
@@ -140,19 +148,20 @@ String selectedProgram = "";
 //Misc variables.
 int col = color(255);
 int prgmState;
+boolean beginSynthesis = false;
 
 void setup() {
   WaveformSelection.addColumn("Memory Bank", Table.STRING);
   WaveformSelection.addColumn("Pin", Table.STRING);
-  WaveformSelection.addColumn("Logic", Table.INT);
+  WaveformSelection.addColumn("Logic", Table.STRING);
 
   
   
   size(1280, 700);
   smooth();
   
-M27C512 = loadImage("M27C512.png");
-M2732A = loadImage("M2732A.png");
+  M27C512 = loadImage("M27C512.png");
+  M2732A = loadImage("M2732A.png");
 
   EEPROM1 = new ControlP5(this);
   EEPROM1.addToggle(chip1 + "_chosen")
@@ -356,6 +365,7 @@ void draw() {
   manageCanvas();
   generateSelectionString();
   popMatrix();
+  if(beginSynthesis) guiGeneratesHex();
 }
 /*
 *Monitors Buttons/Text Fields to appropraitely assign control values based on user input. These variables are what
@@ -436,17 +446,22 @@ void SYNTHESIZE_HEX(int a){
    return;
  }
  flashing = true;
+ beginSynthesis = true; //This is to break the synthesis method out from the button return method, b/c the button method has built in error handling that obfuscates problems with Hex Generation.
+}
+
+void guiGeneratesHex(){
  TableRow newRow = WaveformSelection.addRow();
  //newRow.setString("Memory Bank", membankSelection);
  //newRow.setString("Pin", outpinSelection);
  //newRow.setString("Logic", logicString);
  newRow.setString("Memory Bank", membankSelection);
- newRow.setString("Pin", "1");
- newRow.setInt("Logic", 1);
+ newRow.setString("Pin", outpinSelection);
+ newRow.setString("Logic", logicString);
+ println(logicString);
  BurnIntelHex(WaveformSelection);   
+ beginSynthesis = false;
  println("SYNTHESIS COMPLETE");
 }
-
 void manageBackground(){
   background(currentColor);
   currentIncrement = currentIncrement +  (1- currentIncrement) * flashRate;
@@ -490,8 +505,8 @@ Table tableGrouper(Table waveforms) {
   //groupedWaves: MemBank, pin1_pin2_pin3....pinN, Logic1_....LogicN;
   for ( TableRow row : waveforms.rows()) {
     String bank = row.getString("Memory Bank");
-    String newPin = "" + row.getInt("Pin");
-    String newLogic = "" + row.getInt("Logic");
+    String newPin = "" + row.getString("Pin");
+    String newLogic = "" + row.getString("Logic");
     String oldPins, oldLogics;
     TableRow bankRow;
     try {
@@ -591,7 +606,7 @@ void BurnIntelHex(Table waveformSelection){
    exit();  
 }
 void writeHexTable(Table table){
-  println("Writing the following to hex file: "+ FILENAME+ ": ");
+  println("Writing to the following hex file: "+ FILENAME+ ": ");
   PrintWriter output;
   output = createWriter("data/" +FILENAME);
   for( TableRow row: table.rows() ){
@@ -604,7 +619,7 @@ void writeHexTable(Table table){
 void PrintWaveformSelection(){
   println("  Memory Bank:\t  Pin:\t Logic Function:");
  for (TableRow row: WaveformSelection.rows()){
-    println("  " + row.getString("Memory Bank")+ "\t\t" + row.getInt("Pin") + "\t\t" + row.getInt("Logic") );
+    println("  " + row.getString("Memory Bank")+ "\t\t" + row.getString("Pin") + "\t\t" + row.getString("Logic") );
  }
 }
 
@@ -646,8 +661,7 @@ Table createIHex(Table truthTable) {
         
         recordAddr = currAddr;       
         recordData = hexByte;
-        runningSum = hexByte;
-        
+        runningSum = hexByte;        
         byteCount = 1;
       }
       
@@ -721,130 +735,145 @@ Table truthtableGenerator(Table waveformSelection, Table inputs){
   Table truthTable = new Table();
   truthTable.addColumn("Address", Table.STRING);
   truthTable.addColumn("Outputs", Table.STRING);
-  waveformSelection = tableGrouper(waveformSelection);
-  for(TableRow selection: waveformSelection.rows()){//Each row holds an entire memory bank.
-    String selAddr = selection.getString(0); //"Memory Bank"
-    String pinString = selection.getString(1);//"Pin"
-    String logicString = selection.getString(2);//"Logic"
-    Table pT = new Table(); Table lT = new Table();
-    pT.addColumn();lT.addColumn();
-    StringToTable(pinString,pT,0);
-    StringToTable(logicString,lT,0);
-    Table pinAndLogic = pairTwoIntTables(pT,lT);
-    int waveform= -1;
-    println("Generating Truth Table!!!!");
-    for( TableRow oscRow: inputs.rows()){ //Iterates through every input.
-       String outputs = "0000"+"0000"; //Default 8 output pins. 
-       String input = oscRow.getString(0);
-       for( TableRow action: pinAndLogic.rows()){
-           int pin = action.getInt(0);
-           int logicCode = action.getInt(1);
-           if(logicCode >= WAVEFORMFRONT){
-             waveform = logicCode;
-             break;
-           }
-           outputs = replaceCharAt(pin, str(executeLogic(logicCode, input)).toCharArray()[0], outputs );
-           //println("p"+pin+"_l"+logicCode+"_in"+input+"_OU"+outputs);
-       }
-       if(waveform != -1){outputs = executeWaveform(waveform,input);}
-       println(selAddr+"_"+input+"_"+outputs+"_"+str(unbinary(outputs)));
-       TableRow singleLine = truthTable.addRow();
-       singleLine.setString(0,selAddr+input); //Sets truth table address
-       singleLine.setString(1,outputs);   //Sets truth table output.
+  String selAddr = membankSelection; //"Memory Bank"
+  String pinString = outpinSelection;//"Pin"
+  //String logicString = logicString;//"Logic"
+  //Table pT = new Table(); Table lT = new Table();
+  //pT.addColumn();lT.addColumn();
+  //StringToTable(pinString,pT,0);
+  //StringToTable(logicString,lT,0);
+  //Table pinAndLogic = pairTwoIntTables(pT,lT);
+  //int waveform= -1;
+  println("Generating Truth Table!!!!");
+  
+  String memorizedAnswer = "";
+  if(useLogic) memorizedAnswer = generateFullLogic(logicString);
+  if(useFunction) memorizedAnswer = generateFullWaveform(selectedWave);
+  int memPosition = 0;
+  for( TableRow oscRow: inputs.rows()){ //Iterates through every input.
+    String outputs = "0000"+"0000"; //Default 8 output pins.
+    String input = oscRow.getString(0);
+    char one = '1';
+    for( int pinIndex=0; pinIndex<pinString.length(); pinIndex++){
+      if(pinString.charAt(pinIndex) == one) outputs = replaceCharAt(pinIndex, memorizedAnswer.charAt(memPosition) , outputs );
+      }     
+    memPosition = memPosition+2;      
+    println(selAddr+"_"+input+"_"+outputs+"_"+str(unbinary(outputs)));
+    TableRow singleLine = truthTable.addRow(); 
+    singleLine.setString(0,selAddr+input); //Sets truth table address
+    singleLine.setString(1,outputs);   //Sets truth table output.
+  }
+return truthTable;
+ 
+    
+    
+    //for( TableRow oscRow: inputs.rows()){ //Iterates through every input.
+    //   String outputs = "0000"+"0000"; //Default 8 output pins. 
+    //   String input = oscRow.getString(0);
+    //   for( TableRow action: pinAndLogic.rows()){
+    //       int pin = action.getInt(0);
+           
+    //       //int logicCode = action.getInt(1);
+    //       //if(logicCode >= WAVEFORMFRONT){
+    //       //  waveform = logicCode;
+    //       //  break;
+    //       //}
+    //       if(useLogic){
+    //         String logicCode=action.getString(1);
+    //         outputs = replaceCharAt(pin, str(executeLogic(logicCode, input)).toCharArray()[0], outputs );
+    //       }
+    //       //println("p"+pin+"_l"+logicCode+"_in"+input+"_OU"+outputs);
+    //   }
+    //   if(waveform != -1){outputs = executeWaveform(waveform,input);}
+    //   println(selAddr+"_"+input+"_"+outputs+"_"+str(unbinary(outputs)));
+    //   TableRow singleLine = truthTable.addRow();
+    //   singleLine.setString(0,selAddr+input); //Sets truth table address
+    //   singleLine.setString(1,outputs);   //Sets truth table output.
+    //} 
+  
+}
+
+String generateFullLogic(String logicFunction){
+    String varInit =    "var A0 = 0; ";
+    varInit = varInit + "var A1 = 0; ";
+    varInit = varInit + "var A2 = 0; ";
+    varInit = varInit + "var A3 = 0; ";
+    varInit = varInit + "var A4 = 0; ";
+    varInit = varInit + "var A5 = 0; ";
+    varInit = varInit + "var A6 = 0; ";
+    varInit = varInit + "var A7 = 0; ";
+    String scriptInit = "var k = " + str(int(pow(2,NUM_OSC))) + ";";
+    scriptInit+= "print(\"\\nParsed Logic Function: "  + logicFunction + "\");";
+    String forLoop  = "";
+    forLoop += "var answer = \"\"; ";
+    forLoop += "for(i=0; i<k; i++){";
+    forLoop += "   var binStr = (i+" + str(int(pow(2,NUM_OSC)))+ ").toString(2).substring(1); "; //Substring and adding 2^8 gives zero padding
+    forLoop += "   A0 = binStr[0];";
+    forLoop += "   A1 = binStr[1];";
+    forLoop += "   A2 = binStr[2];";
+    forLoop += "   A3 = binStr[3];";
+    forLoop += "   A4 = binStr[4];";
+    forLoop += "   A5 = binStr[5];";
+    forLoop += "   A6 = binStr[6];";
+    forLoop += "   A7 = binStr[7];";
+    forLoop += "   var stagedAnswer = " + logicFunction + ";";
+    forLoop += "   answer += stagedAnswer + \",\";";
+    //forLoop += "   print(binStr+\"_\"+stagedAnswer);";
+    forLoop += "}";
+    ScriptEngineManager mgr = new ScriptEngineManager();
+    ScriptEngine engine = mgr.getEngineByName("javascript");
+    try {
+      String initCode = "load(\"nashorn:mozilla_compat.js\"); importPackage(java.util);"; // The load statement makes the script engine compatible with the importPackage call.
+      engine.eval(initCode);
+      engine.eval(varInit+scriptInit);
+      engine.eval(forLoop);
+      String answer = engine.get("answer").toString();
+
+      return answer;
+      //x =a;  
+    }
+    catch (Exception e) {
+      println("ERROR; Perhaps bad Logic Function?");
+      e.printStackTrace();
     } 
-  }
-  return truthTable;
+    
+    return "Logic Failed. Please Try again.";
 }
-
-int executeLogic( int logicCode, String inputs){
-  int output = 0;  
-  switch(logicCode){
-   case 1: 
-     output= logicAND_8(inputs);
-     break;
-   case 2:
-     output = logicOR_8(inputs);
-     break;
-   case 3: 
-     output = logicXOR_8(inputs);
-     break;
-   case 4:
-     output = logicCUST_1(inputs);
-     break;
-   case 5:
-     output = logicCUST_2(inputs); 
-     break;
-   
-   
- //To Modify: add extra custom logic methods to here and to the selection menu in section 1.
-   default: output = 0; break; 
-   //default: output = logicAND_8(inputs); break; 
-   
-  }
-  return output;
-}
-
+ 
 /*
-* Performs AND Logic on all 8 input oscillators. Its fixed at 8 because it makes an easy template 
-* for those who want to roll their own logic function.
+*Given a logic function and string of 0,1 inputs, evaluates a single answer to the logic function. Useful for debugging, not used in final truth table generation.
 */
-int logicAND_8(String str){
-  int a,b,c,d,e,f,g,h, answer;
-  int normal = int('0');
-  //println("Inputs_" + str);
-  a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
-  b = int(str.charAt(1))-normal;
-  c = int(str.charAt(2))-normal;
-  d = int(str.charAt(3))-normal;
-  e = int(str.charAt(4))-normal;
-  f = int(str.charAt(5))-normal;
-  g = int(str.charAt(6))-normal;
-  h = int(str.charAt(7))-normal;
-  //println(a+"_&"+ b+c+d+e+f+g+h);
-  answer = a & b & c & d & e & f & g & h ;
-  return answer;
+boolean evalLogicString(String logicFunction, int a, int b, int c, int d, int e2, int f, int g, int h){
+ String varCode = "var a = " +str(a) + "; ";
+ varCode = varCode +  "var b = " +str(b) + "; ";
+ varCode = varCode +  "var c = " +str(c) + "; ";
+ varCode = varCode +  "var d = " +str(d) + "; ";
+ varCode = varCode +  "var e = " +str(e2) + "; ";
+ varCode = varCode +  "var f = " +str(f) + "; ";
+ varCode = varCode +  "var g = " +str(g) + "; ";
+ varCode = varCode +  "var h = " +str(h) + "; ";
+ScriptEngineManager mgr = new ScriptEngineManager();
+ScriptEngine engine = mgr.getEngineByName("javascript");
+try {
+  String initCode = "load(\"nashorn:mozilla_compat.js\"); importPackage(java.util);";
+  engine.eval(initCode);
+  engine.eval(varCode);
+  engine.eval("var answer = " + logicFunction + ";");
+  String answer = engine.get("answer").toString();
+  boolean boolAnswer = !answer.equals("0");
+  return boolAnswer;
+}
+catch (Exception e) {
+  println("ERROR; Perhaps bad Logic Function?");
+  e.printStackTrace();
+}   
+ return false; 
 }
 
-/*
-* Performs OR Logic on all 8 input oscillators. Its fixed at 8 because it makes an easy template 
-* for those who want to roll their own logic function.
-*/
-int logicOR_8(String str){
-  int a,b,c,d,e,f,g,h, answer;
-  int normal = int('0');
-  //println("Inputs_" + str);
-  a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
-  b = int(str.charAt(1))-normal;
-  c = int(str.charAt(2))-normal;
-  d = int(str.charAt(3))-normal;
-  e = int(str.charAt(4))-normal;
-  f = int(str.charAt(5))-normal;
-  g = int(str.charAt(6))-normal;
-  h = int(str.charAt(7))-normal;
-  //println(a+"_|"+ b+c+d+e+f+g+h);
-  answer = a | b | c | d | e | f | g | h ; 
-  return answer;
-}
-
-/*
-* Performs XOR Logic on all 8 input oscillators. Its fixed at 8 because it makes an easy template 
-* for those who want to roll their own logic function.
-*/
-int logicXOR_8(String str){
-  int a,b,c,d,e,f,g,h, answer;
-  int normal = int('0');
-  //println("Inputs_" + str);
-  a = int(str.charAt(0))-normal; //Converts String of Oscillator inputs into integers for Processing Logic.
-  b = int(str.charAt(1))-normal;
-  c = int(str.charAt(2))-normal;
-  d = int(str.charAt(3))-normal;
-  e = int(str.charAt(4))-normal;
-  f = int(str.charAt(5))-normal;
-  g = int(str.charAt(6))-normal;
-  h = int(str.charAt(7))-normal;
-  //println(a+"_^"+ b+c+d+e+f+g+h);
-  answer = a ^ b ^ c ^ d ^ e ^ f ^ g ^ h ; //If spinning your own logic function, change these symbols here.
-  return answer;
+String generateFullWaveform(String wave){
+  
+  
+ return "hi"; 
 }
 
 String executeWaveform(int selection, String inputs){
