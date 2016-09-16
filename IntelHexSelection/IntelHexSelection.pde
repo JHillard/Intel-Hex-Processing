@@ -610,7 +610,7 @@ void BurnIntelHex(Table waveformSelection){
    printBinaryTruthTable(truthTable);
    recordTable = createIHex(truthTable);
    writeHexTable(recordTable);
-   exit();  
+   //exit();  
 }
 void writeHexTable(Table table){
   println("Writing to the following hex file: "+ FILENAME+ ": ");
@@ -865,24 +865,23 @@ String generateFullWaveform(String selectedWave){
       return genCos();
     case squareTag:
       return genSquare();
-    
     case sawTag:
        return genSaw();
     default:
-      println("Error, somehow waveform was not selected properly. Please try again or patch");
-      
+      println("Error, somehow waveform was not selected properly. Please try again or patch"); 
     }
     return "";
 }
 
 
 /*
-*Creates sin wave from incrementing addresses.
+*Creates sin wave from incrementing addresses. Output in form ",0000000,00000110,11110010,00101"
 */
 String genSin(){
   String outputs = "0000"+"0000";
   Table inputs = OscillatorGenerator();
   float addr;
+  float phi = 0; //Somewhere between 0 and 1
   float maxAddr = unbinary("1111"+"1111"); //Assumes 8 bit address space;
   float period = 2*3.14159;
   float scaleM = unbinary("1111"+"1111");//Vertical stretch to fit the address space;
@@ -890,33 +889,85 @@ String genSin(){
   outputs = "";
   for( TableRow state : inputs.rows() ){
     addr = unbinary(state.getString(0));
-    float operation = sin(addr/maxAddr*period);
+    float operation = sin(((addr/maxAddr+phi)%1)*period);
     int answer = int((operation+scaleB)*scaleM/2);
     outputs = outputs + "," + binary(answer,outSize);
   }
-  println(outputs);
+  //println(outputs);
   return outputs;
 }
-
-String genCos(){
-  String outputs = "";
-  
-  
+/*
+*Generates Cos wave Output in form ",0000000,00000110,11110010,00101"
+*/
+String genCos(){ 
+    String outputs = "0000"+"0000";
+  Table inputs = OscillatorGenerator();
+  float addr;
+  float phi = 0;//Somewhere between 0 and 1
+  float maxAddr = unbinary("1111"+"1111"); //Assumes 8 bit address space;
+  float period = 2*3.14159;
+  float scaleM = unbinary("1111"+"1111");//Vertical stretch to fit the address space;
+  float scaleB = 1; //Vertical Shift so no negative binary nonesense.
+  outputs = "";
+  for( TableRow state : inputs.rows() ){
+    addr = unbinary(state.getString(0));
+    float operation = cos(((addr/maxAddr+phi)%1)*period);
+    int answer = int((operation+scaleB)*scaleM/2);
+    outputs = outputs + "," + binary(answer,outSize);
+  }
+  //println(outputs);
   return outputs;
 }
-
+/*
+*Generates square wave  Output in form ",0000000,00000110,11110010,00101"
+*/
 String genSquare(){
-  String outputs = "";
-  
-  
+   String outputs = "0000"+"0000";
+  Table inputs = OscillatorGenerator();
+  float addr;
+  float phi = 0;//Somewhere between 0 and 1
+  float maxAddr = unbinary("1111"+"1111"); //Assumes 8 bit address space;
+  float period = .5; //Period must be less than 1. Period of 1 means it takes a full 8 input roll over time. 
+  float scaleM = unbinary("1111"+"1111");//Vertical stretch to fit the address space;
+  float scaleB = 1; //Vertical Shift so no negative binary nonesense.
+  outputs = "";
+  for( TableRow state : inputs.rows() ){
+    addr = unbinary(state.getString(0));
+    int answer = int( floor(((addr/maxAddr+phi)%1)/period*2)%2  );
+    outputs = outputs + "," + binary(answer,1) + binary(answer,1)+ binary(answer,1)+ binary(answer,1)+ binary(answer,1)+ binary(answer,1)+ binary(answer,1)+ binary(answer,1);
+  }
+  //println(outputs);
   return outputs;
 }  
 
 
 String genSaw(){
+     String outputs = "0000"+"0000";
+  Table inputs = OscillatorGenerator();
+  float addr;
+  float phi = 0;//Somewhere between 0 and 1
+  float maxAddr = unbinary("1111"+"1111"); //Assumes 8 bit address space;
+  float period = 1; //Period must be less than 1. Period of 1 means it takes a full 8 input roll over time. 
+  float scaleM = unbinary("1111"+"1111");//Vertical stretch to fit the address space;
+  float scaleB = 1; //Vertical Shift so no negative binary nonesense.
+  outputs = "";
+  for( TableRow state : inputs.rows() ){
+    addr = unbinary(state.getString(0));
+    int stage1 = int( ((((addr/maxAddr+phi)%1)/period))*maxAddr);
+    int answer = stage1;
+    if(stage1>1) answer = 1-stage1;
+    //int answer = int( floor((addr/maxAddr+phi)/period*2)%2  );
+    outputs = outputs + "," + binary(answer,outSize);
+  }
+  //println(outputs);
+  return outputs;
+}  
+
+
+String genPWM(){
   String outputs = "";
   
-  
+  //Just a thought...
   return outputs;
 }  
 
