@@ -19,7 +19,18 @@ Most variables and methods one might want to change are tagged with the comment 
 So if one is looking to expand the functionality of the program, Ctrl+F that tag and find what you are looking for.
 */
 
-//DELETE MEEE ================================================================================
+/*  FEATURES:
+  Arbitrary Logic Function Execution. Can type any combination of logics: "A0 || A2 && (A0 || A3)"   
+              (Note, this arbitrary code execution _may_ be novel to Processing, only ever seen it in Java)
+  Switchable chips.
+  CSV imports arbitrary truth tables and converts them to Intel Hex, so you don't even have to use the GUI!
+  Many Waveform Generation options. Modularized to make it easy to add a new one.
+  Easily Editable Filename.
+*/  
+final String FILENAME = "ProcessingCode.hex"; //To Modify: choose your filename;
+
+  
+  
 //GUI Variables
 PFont font;
 String selAsk = "Enter Memory Bank: ";
@@ -46,7 +57,7 @@ int selectTextOffset = 125;
 color darkBlue = color(50,55,100);
 color white = color(255,255,255);
 color highlightColor = color(215,215,255);
-
+//*/
 //=====================================================================================================
 
 //Possible Bug; Wikipedia Article on Intel Hex says the Record Checksum should be calculated using the LSB's two's complement. But then goes on to use the
@@ -54,7 +65,7 @@ color highlightColor = color(215,215,255);
 //would appear wikipedia is broken.
 
 //Intel Hex Writing Variables
-final String FILENAME = "ProcessingCode.hex"; //To Modify: choose your filename;
+
 
 Table table;
 //Table WaveformSelection;
@@ -444,11 +455,13 @@ void cleanCanvas() {
   waveGen.hide();
   openingScreen.hide();
 }
-
+/*
+*Called then the buttoon "Synthesis Hex" is pushed. Hook for the rest of the prgm.
+*/
 void SYNTHESIZE_HEX(int a){
  println("Synthesizing Intel Hex..."); 
  currentIncrement = 0;
- if(firstRun){
+ if(firstRun){//Because buttons are pressed at the start of a prgm run? This stops that bug.
    firstRun=!firstRun;
    return;
  }
@@ -456,6 +469,9 @@ void SYNTHESIZE_HEX(int a){
  beginSynthesis = true; //This is to break the synthesis method out from the button return method, b/c the button method has built in error handling that obfuscates problems with Hex Generation.
 }
 
+/*
+*
+*/
 void guiGeneratesHex(){
  TableRow newRow = WaveformSelection.addRow();
  //newRow.setString("Memory Bank", membankSelection);
@@ -469,6 +485,9 @@ void guiGeneratesHex(){
  beginSynthesis = false;
  println("SYNTHESIS COMPLETE");
 }
+/*
+*Manages the background and changes it's color when necassary. Rarely needed though.
+*/
 void manageBackground(){
   background(currentColor);
   currentIncrement = currentIncrement +  (1- currentIncrement) * flashRate;
@@ -612,6 +631,9 @@ void BurnIntelHex(Table waveformSelection){
    writeHexTable(recordTable);
    //exit();  
 }
+/*
+*Iterates through a table of hex strings and writes it to a file.
+*/
 void writeHexTable(Table table){
   println("Writing to the following hex file: "+ FILENAME+ ": ");
   PrintWriter output;
@@ -631,8 +653,7 @@ void PrintWaveformSelection(){
 }
 
 /*
-* Truth Table is of form:
-* address(input on pins), output on pins
+* Translates truth table of form (addr, output pins) into a string of Intel Hex.
 */
 Table createIHex(Table truthTable) {
   Boolean firstAddr = true;
@@ -681,7 +702,9 @@ Table createIHex(Table truthTable) {
   eofRow.setString(0, ":"+"00"+"0000"+"01"+"FF"); //EOF Record.
   return recordTable;
 }
-
+/*
+*Finializes a single line of Intel Hex, for createIHex(). Trivia; a single line of iHex is called a record.
+*/
 String processRecord(String recordAddr, String recordData, int byteCount, String dataSum){
   dataSum = hex( unhex(dataSum) + byteCount, 2);
   String checksum = hex( unhex("FF") - unhex(dataSum)+1   ,2);
@@ -727,14 +750,8 @@ Boolean isSequential(String hex1, String hex2) {
 
 
 /*
-*Takes in an input of oscillators, and a waveform Table of shape:
-* Memory Bank1, P1_P2_...PN_, L1_L2_...LN
-* Memory Bank2, P1_P2_...PN_, L1_L2_...LN
-* Memory Bank3, P1_P2_...PN_, L1_L2_...LN
-* and outputs a truth table of shape:
-* Address1, Output1
-* Address2, Output2
-* Address3, Output3
+*Takes in an input of oscillators, and an input of control strings (logic function, waveform, sin cos etc.)
+*and outputs a Processing table of the form: (Inputs, Outputs)
 */
 Table truthtableGenerator(Table waveformSelection, Table inputs){
   println("Function Outputs:");
@@ -779,6 +796,10 @@ Table truthtableGenerator(Table waveformSelection, Table inputs){
 return truthTable;
 }
 
+/*
+* Returns big string of all boolean answers to an arbitrary logic function encapsulated by str logicFunction.
+* Works by instantiating a Javascript engine and then executing arbitrary code. This is also pretty novel to Processing. Only ever saw it done in Java.
+*/
 String generateFullLogic(String logicFunction){
     String varInit =    "var A0 = 0; ";
     varInit = varInit + "var A1 = 0; ";
@@ -793,7 +814,7 @@ String generateFullLogic(String logicFunction){
     String forLoop  = "";
     forLoop += "var answer = \"\"; ";
     forLoop += "for(i=0; i<k; i++){";
-    forLoop += "   var binStr = (i+" + str(int(pow(2,NUM_OSC)))+ ").toString(2).substring(1); "; //Substring and adding 2^8 gives zero padding
+    forLoop += "   var binStr = (i+" + str(int(pow(2,NUM_OSC)))+ ").toString(2).substring(1); "; //Substring and adding 2^8 gives zero padding. Neat hack
     forLoop += "   A0 = binStr[0];";
     forLoop += "   A1 = binStr[1];";
     forLoop += "   A2 = binStr[2];";
@@ -856,6 +877,9 @@ catch (Exception e) {
  return false; 
 }
 
+/*
+* Selects between waveform functions.
+*/
 String generateFullWaveform(String selectedWave){
   println("Selected Wave: " + selectedWave);
   switch(selectedWave){
@@ -1011,7 +1035,7 @@ String waveformCOS(String str){
 }
 
 
-/*
+/* TO MODIFY: Roll your own waveform function. Given a sequence of 0-255 binary number, what is the output?
 *Creates ??? wave from incrementing addresses.
 */
 /*To Modify: Uncomment and change the operation function below.
@@ -1031,7 +1055,13 @@ String waveform???(String str){
 */
 
 
-
+/*
+*
+*
+*    OLD LOGIC CODE. DOESN'T DO MUCH, BUT COULD BE USEFULL IF CHANGING LOGIC PARADIGM INTO A MULTIPLE FUNCTION PER ENTRY KIND OF DEAL.
+*
+*
+*/
 
 /*
 * To modify: Performs ???? Logic
@@ -1098,7 +1128,7 @@ void printBinaryTruthTable(Table truthTable){
 }
 
 /*
-*Processes a CSV and returns the Table of our addresses and outputs
+*Processes a CSV and returns the Table of our addresses and outputs. Allows for arbitrary truth table inputs without this program!!!
  */
 Table CSVprocess() {
   Table table;
