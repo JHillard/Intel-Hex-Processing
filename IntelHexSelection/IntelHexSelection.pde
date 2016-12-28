@@ -456,7 +456,7 @@ void cleanCanvas() {
   openingScreen.hide();
 }
 /*
-*Called then the buttoon "Synthesis Hex" is pushed. Hook for the rest of the prgm.
+*Called then the button "Synthesis Hex" is pushed. Hook for the rest of the prgm.
 */
 void SYNTHESIZE_HEX(int a){
  println("Synthesizing Intel Hex..."); 
@@ -483,7 +483,7 @@ void guiGeneratesHex(){
  println(logicString);
  BurnIntelHex(WaveformSelection);   
  beginSynthesis = false;
- println("SYNTHESIS COMPLETE");
+
 }
 /*
 *Manages the background and changes it's color when necassary. Rarely needed though.
@@ -624,11 +624,18 @@ void BurnIntelHex(Table waveformSelection){
   Table truthTable;
    PrintWaveformSelection();
    Table inputs = OscillatorGenerator();
-   truthTable = truthtableGenerator(waveformSelection,inputs);
-   println("Truth Table Generated! Outputs below:");
-   printBinaryTruthTable(truthTable);
-   recordTable = createIHex(truthTable);
-   writeHexTable(recordTable);
+   try {
+     truthTable = truthtableGenerator(waveformSelection,inputs);
+     println("Truth Table Generated! Outputs below:");
+     printBinaryTruthTable(truthTable);
+     recordTable = createIHex(truthTable);
+     writeHexTable(recordTable);
+     println("SYNTHESIS COMPLETE");
+   } catch (Exception e) {
+     //e.printStackTrace();
+     delay(500);
+     println("Truth Table Generation FAILED. Please try again.");
+   }
    //exit();  
 }
 /*
